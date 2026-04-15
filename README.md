@@ -28,10 +28,16 @@ This repo intentionally does **not** include Modal wrappers, Modal configs, or d
 
 Representative non-failure-driven results are included below so the repository shows the main effect directly on GitHub without committing the full artifact tree.
 
+- Current non-adaptive takeaway:
+  `cluster_centroid` is the strongest overall Steiner method across the current artifact set, while `bridge` is the cleanest geometry-driven win on full `sift-128-euclidean`.
 - `glove-200-angular`, `100k` database, `500` queries:
   `cluster_centroid` clearly beats the plain graph. At beam `64`, baseline reached `Recall@10 = 0.4190` with `922.6` average distance computations, while `cluster_centroid` reached `Recall@10 = 0.6522` with `825.9` computations.
 - full `glove-200-angular`, `1.18M` database, `1000` queries:
   `cluster_centroid` also beats baseline at full scale. By `Recall@10 AUC`, baseline was `0.1018` while `cluster_centroid` reached `0.3099`.
+
+![Conceptual bridge demo](docs/figures/bridge_navigation_demo.png)
+
+Open `docs/bridge_navigation_demo.html` locally for the animated version of the same bridge concept.
 
 ![GloVe 100k cluster-centroid result](docs/figures/glove_100k_cluster_centroid.png)
 

@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HiddenBridge bridge demo</title>
+    <style>
+      :root {
+        --bg: #f6f2eb;
+        --panel: #fffdf9;
+        --panel-border: #d8cfbf;
+        --edge: #c7beb2;
+        --node: #3f6ea8;
+        --node-stroke: #27486d;
+        --start: #c63a55;
+        --start-stroke: #8b2137;
+        --target: #1f8c61;
+        --path: #cc4b37;
+        --bridge: #ea9742;
+        --bridge-stroke: #975c1f;
+        --bridge-edge: #ca8432;
+        --text: #222;
+        --subtle: #766b5f;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 1220px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .panel {
+        fill: var(--panel);
+        stroke: var(--panel-border);
+        stroke-width: 2;
+      }
+      .edge {
+        stroke: var(--edge);
+        stroke-width: 3;
+        stroke-linecap: round;
+      }
+      .bridge-edge {
+        stroke: var(--bridge-edge);
+        stroke-width: 5;
+        stroke-linecap: round;
+        opacity: 0.25;
+        transition: opacity 280ms ease;
+      }
+      .node {
+        fill: var(--node);
+        stroke: var(--node-stroke);
+        stroke-width: 2.4;
+      }
+      .start {
+        fill: var(--start);
+        stroke: var(--start-stroke);
+        stroke-width: 3;
+      }
+      .bridge-node {
+        fill: var(--bridge);
+        stroke: var(--bridge-stroke);
+        stroke-width: 3;
+        opacity: 0.25;
+        transition: opacity 280ms ease;
+      }
+      .target-ring {
+        fill: none;
+        stroke: var(--target);
+        stroke-width: 5;
+      }
+      .target-core {
+        fill: var(--target);
+      }
+      .path {
+        stroke: var(--path);
+        stroke-width: 8;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .visit {
+        fill: var(--path);
+        opacity: 0;
+      }
+      .callout {
+        fill: none;
+        stroke-width: 5;
+        opacity: 0;
+      }
+      .deadend { stroke: var(--path); }
+      .success { stroke: var(--target); }
+      .headline {
+        font-size: 25px;
+        font-weight: 700;
+      }
+      .caption {
+        font-size: 17px;
+        font-weight: 500;
+        fill: var(--subtle);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <svg viewBox="0 0 1200 520" aria-label="Connected graph bridge demo">
+        <rect x="0" y="0" width="1200" height="520" rx="28" fill="var(--bg)" />
+
+        <text class="headline" x="70" y="54">Connected graph, greedy path gets trapped</text>
+        <text class="headline" x="650" y="54">Same graph plus one bridge node</text>
+        <text class="caption" x="406" y="490">orange = routing-only Steiner bridge</text>
+
+        <g id="left" transform="translate(40,84)">
+          <rect class="panel" x="0" y="0" rx="26" ry="26" width="520" height="360" />
+          <g id="left-graph" transform="translate(8,18) scale(0.73,0.92)">
+            <g id="left-edges"></g>
+            <g id="left-path-group"></g>
+            <g id="left-nodes"></g>
+          </g>
+        </g>
+
+        <g id="right" transform="translate(640,84)">
+          <rect class="panel" x="0" y="0" rx="26" ry="26" width="520" height="360" />
+          <g id="right-graph" transform="translate(8,18) scale(0.73,0.92)">
+            <g id="right-edges"></g>
+            <g id="right-bridge"></g>
+            <g id="right-path-group"></g>
+            <g id="right-nodes"></g>
+          </g>
+        </g>
+      </svg>
+    </div>
+
+    <script>
+      const positions = {
+        A: [90, 240],
+        B: [140, 170],
+        C: [145, 315],
+        D: [220, 205],
+        E: [285, 135],
+        F: [290, 300],
+        G: [360, 165],
+        H: [380, 320],
+        I: [455, 255],
+        J: [520, 185],
+        K: [535, 335],
+        L: [590, 215],
+        M: [610, 305],
+        S: [475, 165],
+      };
+
+      const baseEdges = [
+        ["A", "B"], ["A", "C"], ["B", "D"], ["C", "D"], ["D", "E"], ["D", "F"],
+        ["E", "G"], ["F", "H"], ["H", "I"], ["I", "J"], ["I", "K"], ["J", "L"],
+        ["K", "M"], ["L", "M"],
+      ];
+
+      const leftPath = ["A", "B", "D", "E", "G"];
+      const rightPath = ["A", "B", "D", "E", "G", "S", "J", "L"];
+
+      function line(svgParent, a, b, className) {
+        const el = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        el.setAttribute("x1", positions[a][0]);
+        el.setAttribute("y1", positions[a][1]);
+        el.setAttribute("x2", positions[b][0]);
+        el.setAttribute("y2", positions[b][1]);
+        el.setAttribute("class", className);
+        svgParent.appendChild(el);
+        return el;
+      }
+
+      function circle(svgParent, key, className, r) {
+        const el = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        el.setAttribute("cx", positions[key][0]);
+        el.setAttribute("cy", positions[key][1]);
+        el.setAttribute("r", r);
+        el.setAttribute("class", className);
+        svgParent.appendChild(el);
+        return el;
+      }
+
+      function polyline(svgParent, keys, className) {
+        const el = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+        el.setAttribute("points", keys.map((k) => positions[k].join(",")).join(" "));
+        el.setAttribute("class", className);
+        svgParent.appendChild(el);
+        return el;
+      }
+
+      function addTarget(svgParent, key) {
+        const ring = circle(svgParent, key, "target-ring", 18);
+        const core = circle(svgParent, key, "target-core", 5);
+        return [ring, core];
+      }
+
+      function buildPanel(edgeRoot, nodeRoot) {
+        baseEdges.forEach(([a, b]) => line(edgeRoot, a, b, "edge"));
+        const nodeKeys = ["A","B","C","D","E","F","G","H","I","J","K","L","M"];
+        nodeKeys.forEach((key) => circle(nodeRoot, key, key === "A" ? "start" : "node", key === "A" ? 12 : 10));
+        addTarget(nodeRoot, "L");
+      }
+
+      const leftEdges = document.getElementById("left-edges");
+      const leftNodes = document.getElementById("left-nodes");
+      const leftPathGroup = document.getElementById("left-path-group");
+      const rightEdges = document.getElementById("right-edges");
+      const rightNodes = document.getElementById("right-nodes");
+      const rightPathGroup = document.getElementById("right-path-group");
+      const rightBridge = document.getElementById("right-bridge");
+
+      buildPanel(leftEdges, leftNodes);
+      buildPanel(rightEdges, rightNodes);
+
+      const bridgeEdge1 = line(rightBridge, "G", "S", "bridge-edge");
+      const bridgeEdge2 = line(rightBridge, "S", "J", "bridge-edge");
+      const bridgeNode = circle(rightNodes, "S", "bridge-node", 12);
+
+      const leftPathLine = polyline(leftPathGroup, leftPath, "path");
+      const rightPathLine = polyline(rightPathGroup, rightPath, "path");
+      const leftVisits = leftPath.slice(1).map((key) => circle(leftPathGroup, key, "visit", 7));
+      const rightVisits = rightPath.slice(1).map((key) => circle(rightPathGroup, key, "visit", 7));
+      const leftDeadend = circle(leftPathGroup, "G", "callout deadend", 22);
+      const rightSuccess = circle(rightPathGroup, "L", "callout success", 28);
+
+      function prepPath(pathEl) {
+        const length = pathEl.getTotalLength();
+        pathEl.style.strokeDasharray = `${length}`;
+        pathEl.style.strokeDashoffset = `${length}`;
+        return length;
+      }
+
+      const leftLength = prepPath(leftPathLine);
+      const rightLength = prepPath(rightPathLine);
+
+      function setVisitOpacity(visits, count) {
+        visits.forEach((visit, idx) => {
+          visit.style.opacity = idx < count ? "1" : "0";
+        });
+      }
+
+      function animate() {
+        const start = performance.now();
+        const total = 5600;
+        const baselineEnd = 2200;
+        const bridgeTurnOn = 2500;
+        const rightStart = 3000;
+
+        function tick(now) {
+          const t = (now - start) % total;
+
+          const leftProgress = Math.max(0, Math.min(1, t / baselineEnd));
+          leftPathLine.style.strokeDashoffset = `${leftLength * (1 - leftProgress)}`;
+          setVisitOpacity(leftVisits, Math.floor(leftProgress * leftVisits.length + 0.001));
+          leftDeadend.style.opacity = t > 2300 && t < 3600 ? "1" : "0";
+
+          const bridgeOn = t >= bridgeTurnOn;
+          bridgeEdge1.style.opacity = bridgeOn ? "1" : "0.18";
+          bridgeEdge2.style.opacity = bridgeOn ? "1" : "0.18";
+          bridgeNode.style.opacity = bridgeOn ? "1" : "0.25";
+
+          const rightProgress = Math.max(0, Math.min(1, (t - rightStart) / 2000));
+          rightPathLine.style.strokeDashoffset = `${rightLength * (1 - rightProgress)}`;
+          setVisitOpacity(rightVisits, Math.floor(rightProgress * rightVisits.length + 0.001));
+          rightSuccess.style.opacity = t > 5000 ? "1" : "0";
+
+          requestAnimationFrame(tick);
+        }
+
+        requestAnimationFrame(tick);
+      }
+
+      animate();
+    </script>
+  </body>
+  </html>
