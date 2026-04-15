@@ -20,7 +20,7 @@ Steiner points are used only for graph construction and graph navigation. They a
 - multi-run comparison plotting
 - hidden-count ablation plotting
 - local dataset download helpers for ANN-Benchmarks GloVe and SIFT
-- local dataset registration helper for precomputed array datasets such as OpenAI embeddings
+- local dataset registration helpers for precomputed array datasets, including OpenAI `1536` and `3072` embeddings
 
 This repo intentionally does **not** include Modal wrappers, Modal configs, or downloaded dataset/artifact files.
 
@@ -112,6 +112,32 @@ python -m hiddenbridge.register_dataset \
 
 Use `--metric euclidean` for Euclidean datasets and omit `--normalize` unless the metric should be cosine/IP.
 
+## Register OpenAI Embedding Datasets
+
+For OpenAI embedding exports, HiddenBridge includes a convenience wrapper that fixes the metric to cosine and enables normalization automatically.
+
+Register a `1536`-dimensional OpenAI dataset:
+
+```bash
+python -m hiddenbridge.register_openai_dataset \
+  --dimension 1536 \
+  --train-file /path/to/openai_1536_train.npy \
+  --test-file /path/to/openai_1536_test.npy \
+  --data-root data
+```
+
+Register a `3072`-dimensional OpenAI dataset:
+
+```bash
+python -m hiddenbridge.register_openai_dataset \
+  --dimension 3072 \
+  --train-file /path/to/openai_3072_train.npy \
+  --test-file /path/to/openai_3072_test.npy \
+  --data-root data
+```
+
+If you want a specific dataset folder name instead of the defaults, pass `--dataset-subdir`.
+
 ## Run An Experiment
 
 Example: GloVe `100k` database with two strong Steiner methods:
@@ -153,6 +179,48 @@ python -m hiddenbridge.experiment \
   --graph-build-strategy fixed \
   --ivf-nprobe 32 \
   --validation-query-count 500 \
+  --validation-beam-size 16
+```
+
+Example: OpenAI `1536` embeddings with a `100k` graph and `1,000` queries:
+
+```bash
+python -m hiddenbridge.experiment \
+  --data-root data \
+  --dataset-subdir openai-1536 \
+  --train-size 100000 \
+  --query-count 1000 \
+  --hidden-count 512 \
+  --top-k 10 \
+  --max-degree 32 \
+  --candidate-pool 96 \
+  --beam-sizes-csv 8,16,32,64 \
+  --methods-csv cluster_centroid,failure_driven,bridge,pairwise_interpolation \
+  --candidate-source ivf \
+  --graph-build-strategy fixed \
+  --ivf-nprobe 32 \
+  --validation-query-count 250 \
+  --validation-beam-size 16
+```
+
+Example: OpenAI `3072` embeddings with a `100k` graph and `1,000` queries:
+
+```bash
+python -m hiddenbridge.experiment \
+  --data-root data \
+  --dataset-subdir openai-3072 \
+  --train-size 100000 \
+  --query-count 1000 \
+  --hidden-count 512 \
+  --top-k 10 \
+  --max-degree 32 \
+  --candidate-pool 96 \
+  --beam-sizes-csv 8,16,32,64 \
+  --methods-csv cluster_centroid,failure_driven,bridge,pairwise_interpolation \
+  --candidate-source ivf \
+  --graph-build-strategy fixed \
+  --ivf-nprobe 32 \
+  --validation-query-count 250 \
   --validation-beam-size 16
 ```
 
