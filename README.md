@@ -35,9 +35,9 @@ Representative non-failure-driven results are included below so the repository s
 - full `glove-200-angular`, `1.18M` database, `1000` queries:
   `cluster_centroid` also beats baseline at full scale. By `Recall@10 AUC`, baseline was `0.1018` while `cluster_centroid` reached `0.3099`.
 
-![Conceptual bridge demo](docs/figures/bridge_navigation_demo.png)
+![Conceptual bridge demo](docs/figures/bridge_navigation_demo.gif)
 
-Open `docs/bridge_navigation_demo.html` locally for the animated version of the same bridge concept.
+Open `docs/bridge_navigation_demo.html` locally for the interactive version of the same bridge concept.
 
 ![GloVe 100k cluster-centroid result](docs/figures/glove_100k_cluster_centroid.png)
 
