@@ -24,6 +24,21 @@ Steiner points are used only for graph construction and graph navigation. They a
 
 This repo intentionally does **not** include Modal wrappers, Modal configs, or downloaded dataset/artifact files.
 
+## Selected Results
+
+Representative non-failure-driven results are included below so the repository shows the main effect directly on GitHub without committing the full artifact tree.
+
+- `glove-200-angular`, `100k` database, `500` queries:
+  `cluster_centroid` clearly beats the plain graph. At beam `64`, baseline reached `Recall@10 = 0.4190` with `922.6` average distance computations, while `cluster_centroid` reached `Recall@10 = 0.6522` with `825.9` computations.
+- full `glove-200-angular`, `1.18M` database, `1000` queries:
+  `cluster_centroid` also beats baseline at full scale. By `Recall@10 AUC`, baseline was `0.1018` while `cluster_centroid` reached `0.3099`.
+
+![GloVe 100k cluster-centroid result](docs/figures/glove_100k_cluster_centroid.png)
+
+![Full GloVe cluster-centroid result](docs/figures/glove_full_cluster_centroid.png)
+
+These are selected showcase figures only. The full local artifact set used during benchmarking stays outside this repo.
+
 ## Steiner Methods
 
 Implemented methods:
