@@ -2255,20 +2255,23 @@ def _style_tradeoff_axis(axis, x_limits, x_ticks):
     axis.set_xlim(*x_limits)
     axis.set_ylim(0.0, 1.02)
     axis.set_axisbelow(True)
+    axis.margins(x=0.03, y=0.02)
     axis.xaxis.set_major_locator(FixedLocator(x_ticks))
     axis.set_xticklabels([_format_x_tick(item) for item in x_ticks])
     axis.xaxis.set_minor_locator(
         LogLocator(base=10.0, subs=(2, 3, 4, 5, 6, 7, 8, 9))
     )
     axis.xaxis.set_minor_formatter(NullFormatter())
-    axis.grid(which="major", axis="y", color="#D1D5DB", linewidth=0.9, alpha=0.95)
-    axis.grid(which="major", axis="x", color="#CBD5E1", linewidth=0.9, alpha=0.8)
-    axis.grid(which="minor", axis="x", color="#E5E7EB", linestyle=":", linewidth=0.8)
-    axis.tick_params(axis="both", labelsize=10)
+    axis.grid(which="major", axis="y", color="#CBD5E1", linewidth=1.2, alpha=0.98)
+    axis.grid(which="major", axis="x", color="#CBD5E1", linewidth=1.0, alpha=0.84)
+    axis.grid(which="minor", axis="x", color="#E5E7EB", linestyle=":", linewidth=0.95)
+    axis.tick_params(axis="both", labelsize=11.5, width=1.0, length=5, pad=6)
     axis.spines["top"].set_visible(False)
     axis.spines["right"].set_visible(False)
     axis.spines["left"].set_color("#94A3B8")
     axis.spines["bottom"].set_color("#94A3B8")
+    axis.spines["left"].set_linewidth(1.1)
+    axis.spines["bottom"].set_linewidth(1.1)
 
 
 def _save_tradeoff_plot(
@@ -2282,11 +2285,21 @@ def _save_tradeoff_plot(
     import matplotlib.pyplot as plt
 
     plt.style.use("seaborn-v0_8-whitegrid")
+    plt.rcParams.update(
+        {
+            "axes.labelsize": 13.5,
+            "axes.titlesize": 16.5,
+            "legend.fontsize": 10.4,
+            "xtick.labelsize": 11.5,
+            "ytick.labelsize": 11.5,
+            "font.size": 12.0,
+        }
+    )
     method_styles = _plot_method_styles()
     x_limits = _plot_x_bounds([payload])
     x_ticks = _plot_x_ticks([payload])
 
-    figure, axes = plt.subplots(1, 2, figsize=(16.8, 7.4), dpi=220, sharex=True)
+    figure, axes = plt.subplots(1, 2, figsize=(19.2, 8.9), dpi=240, sharex=True)
     figure.patch.set_facecolor("white")
     panels = [
         ("recall_at_1", "Recall@1"),
@@ -2312,11 +2325,11 @@ def _save_tradeoff_plot(
                 color=style["color"],
                 marker=style["marker"],
                 linestyle=style.get("linestyle", "-"),
-                linewidth=2.25,
-                markersize=7.5,
+                linewidth=3.05,
+                markersize=9.2,
                 markeredgecolor="white",
-                markeredgewidth=0.9,
-                alpha=0.96,
+                markeredgewidth=1.05,
+                alpha=0.98,
                 label=_plot_label_for_method(
                     payload=payload,
                     method_name=method_name,
@@ -2325,6 +2338,7 @@ def _save_tradeoff_plot(
             )
         axis.set_xlabel("Average distance computations per query")
         axis.set_ylabel(metric_label)
+        axis.set_title(metric_label, fontsize=15.5, fontweight="bold", pad=12)
         _style_tradeoff_axis(axis, x_limits=x_limits, x_ticks=x_ticks)
 
     handles, labels = axes[0].get_legend_handles_labels()
@@ -2334,15 +2348,19 @@ def _save_tradeoff_plot(
         loc="upper center",
         frameon=True,
         ncol=min(4, max(1, len(labels))),
-        fontsize=9.2,
-        bbox_to_anchor=(0.5, 0.965),
+        fontsize=10.4,
+        bbox_to_anchor=(0.5, 0.972),
+        borderpad=0.7,
+        handlelength=2.6,
+        edgecolor="#CBD5E1",
+        facecolor="white",
     )
     figure.suptitle(
         (
             "DiskANN-style graph search on "
             f"{payload['dataset']['name']} with routing-only Steiner points"
         ),
-        fontsize=16,
+        fontsize=18.5,
         fontweight="bold",
         y=0.995,
     )
@@ -2357,12 +2375,12 @@ def _save_tradeoff_plot(
         ),
         ha="center",
         va="bottom",
-        fontsize=10,
+        fontsize=11,
         color="#374151",
     )
 
     plot_path.parent.mkdir(parents=True, exist_ok=True)
-    figure.tight_layout(rect=(0.02, 0.07, 0.98, 0.90))
+    figure.tight_layout(rect=(0.018, 0.075, 0.982, 0.90))
     figure.savefig(plot_path, bbox_inches="tight")
     plt.close(figure)
 

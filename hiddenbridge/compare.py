@@ -219,18 +219,21 @@ def _style_tradeoff_axis(axis, x_limits, x_ticks) -> None:
     axis.set_xticklabels([_format_x_tick(item) for item in x_ticks])
     axis.set_ylim(0.0, 1.02)
     axis.set_axisbelow(True)
+    axis.margins(x=0.03, y=0.02)
     axis.xaxis.set_minor_locator(
         LogLocator(base=10.0, subs=(2, 3, 4, 5, 6, 7, 8, 9))
     )
     axis.xaxis.set_minor_formatter(NullFormatter())
-    axis.grid(which="major", axis="y", color="#D1D5DB", linewidth=0.9, alpha=0.95)
-    axis.grid(which="major", axis="x", color="#CBD5E1", linewidth=0.9, alpha=0.8)
-    axis.grid(which="minor", axis="x", color="#E5E7EB", linestyle=":", linewidth=0.8)
-    axis.tick_params(axis="both", labelsize=10)
+    axis.grid(which="major", axis="y", color="#CBD5E1", linewidth=1.2, alpha=0.98)
+    axis.grid(which="major", axis="x", color="#CBD5E1", linewidth=1.0, alpha=0.84)
+    axis.grid(which="minor", axis="x", color="#E5E7EB", linestyle=":", linewidth=0.95)
+    axis.tick_params(axis="both", labelsize=11.5, width=1.0, length=5, pad=6)
     axis.spines["top"].set_visible(False)
     axis.spines["right"].set_visible(False)
     axis.spines["left"].set_color("#94A3B8")
     axis.spines["bottom"].set_color("#94A3B8")
+    axis.spines["left"].set_linewidth(1.1)
+    axis.spines["bottom"].set_linewidth(1.1)
 
 
 def save_benchmark_comparison_plot(
@@ -247,6 +250,16 @@ def save_benchmark_comparison_plot(
         raise ValueError("Expected at least one payload")
 
     plt.style.use("seaborn-v0_8-whitegrid")
+    plt.rcParams.update(
+        {
+            "axes.labelsize": 13.5,
+            "axes.titlesize": 16.0,
+            "legend.fontsize": 10.2,
+            "xtick.labelsize": 11.2,
+            "ytick.labelsize": 11.2,
+            "font.size": 11.8,
+        }
+    )
     styles = _method_styles()
     shared_hidden_counts = _shared_method_hidden_counts(payloads)
     x_limits = _plot_x_bounds(payloads)
@@ -255,8 +268,8 @@ def save_benchmark_comparison_plot(
     figure, axes = plt.subplots(
         row_count,
         2,
-        figsize=(16.4, max(5.6 * row_count, 6.4)),
-        dpi=220,
+        figsize=(18.8, max(6.2 * row_count, 7.2)),
+        dpi=240,
         squeeze=False,
         sharex=True,
         sharey="col",
@@ -294,11 +307,11 @@ def save_benchmark_comparison_plot(
                     color=style["color"],
                     marker=style["marker"],
                     linestyle=style.get("linestyle", "-"),
-                    linewidth=2.25,
-                    markersize=7.5,
+                    linewidth=2.95,
+                    markersize=8.8,
                     markeredgecolor="white",
-                    markeredgewidth=0.9,
-                    alpha=0.96,
+                    markeredgewidth=1.0,
+                    alpha=0.98,
                     label=_legend_label(
                         method_name=method_name,
                         base_label=style["label"],
@@ -308,7 +321,12 @@ def save_benchmark_comparison_plot(
             axis.set_ylim(0.0, 1.02)
             axis.set_xlabel("Average distance computations per query")
             axis.set_ylabel(ylabel)
-            axis.set_title(f"{_dataset_label(dataset_name)}", fontsize=14, fontweight="bold")
+            axis.set_title(
+                f"{_dataset_label(dataset_name)}",
+                fontsize=15.6,
+                fontweight="bold",
+                pad=11,
+            )
             _style_tradeoff_axis(axis, x_limits=x_limits, x_ticks=x_ticks)
 
     handles, labels = axes[0][0].get_legend_handles_labels()
@@ -318,11 +336,15 @@ def save_benchmark_comparison_plot(
         loc="upper center",
         ncol=min(4, max(1, len(labels))),
         frameon=True,
-        bbox_to_anchor=(0.5, 0.982),
+        bbox_to_anchor=(0.5, 0.985),
+        borderpad=0.7,
+        handlelength=2.6,
+        edgecolor="#CBD5E1",
+        facecolor="white",
     )
     figure.suptitle(
         "DiskANN-Style Steiner Point Comparison Across Benchmarks",
-        fontsize=18,
+        fontsize=20,
         fontweight="bold",
         y=0.995,
     )
@@ -335,12 +357,12 @@ def save_benchmark_comparison_plot(
         ),
         ha="center",
         va="bottom",
-        fontsize=10,
+        fontsize=11,
         color="#374151",
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    figure.tight_layout(rect=(0.02, 0.05, 0.98, 0.92))
+    figure.tight_layout(rect=(0.018, 0.055, 0.982, 0.925))
     figure.savefig(output_path, bbox_inches="tight")
     plt.close(figure)
 

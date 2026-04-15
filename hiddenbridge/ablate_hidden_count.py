@@ -82,7 +82,17 @@ def save_hidden_count_ablation_plot(
     }
 
     plt.style.use("seaborn-v0_8-whitegrid")
-    figure, axes = plt.subplots(1, 2, figsize=(17.0, 7.6), dpi=220, sharex=True)
+    plt.rcParams.update(
+        {
+            "axes.labelsize": 13.5,
+            "axes.titlesize": 16.0,
+            "legend.fontsize": 10.2,
+            "xtick.labelsize": 11.2,
+            "ytick.labelsize": 11.2,
+            "font.size": 11.8,
+        }
+    )
+    figure, axes = plt.subplots(1, 2, figsize=(19.0, 8.8), dpi=240, sharex=True)
     figure.patch.set_facecolor("white")
 
     metric_panels = [
@@ -102,10 +112,10 @@ def save_hidden_count_ablation_plot(
             color=baseline_style["color"],
             marker=baseline_style["marker"],
             linestyle="-",
-            linewidth=2.6,
-            markersize=7.5,
+            linewidth=3.2,
+            markersize=9.0,
             markeredgecolor="white",
-            markeredgewidth=0.9,
+            markeredgewidth=1.0,
             alpha=0.98,
             label="Baseline graph",
             zorder=5,
@@ -130,16 +140,17 @@ def save_hidden_count_ablation_plot(
                     color=base_style["color"],
                     marker=base_style["marker"],
                     linestyle=linestyle_cycle.get(hidden_count, "--"),
-                    linewidth=2.15,
-                    markersize=6.8,
+                    linewidth=2.8,
+                    markersize=8.2,
                     markeredgecolor="white",
-                    markeredgewidth=0.8,
-                    alpha=0.95,
+                    markeredgewidth=0.95,
+                    alpha=0.97,
                     label=_legend_label(method_name, payload),
                 )
 
         axis.set_xlabel("Average distance computations per query")
         axis.set_ylabel(metric_label)
+        axis.set_title(metric_label, fontsize=15.4, fontweight="bold", pad=12)
         _style_tradeoff_axis(axis, x_limits=x_limits, x_ticks=x_ticks)
 
     handles, labels = axes[0].get_legend_handles_labels()
@@ -159,12 +170,16 @@ def save_hidden_count_ablation_plot(
         loc="upper center",
         frameon=True,
         ncol=min(5, max(1, len(dedup_labels))),
-        fontsize=9.2,
-        bbox_to_anchor=(0.5, 0.97),
+        fontsize=10.2,
+        bbox_to_anchor=(0.5, 0.972),
+        borderpad=0.7,
+        handlelength=2.6,
+        edgecolor="#CBD5E1",
+        facecolor="white",
     )
     figure.suptitle(
         f"Steiner Budget Ablation on {_dataset_label(dataset_name)}",
-        fontsize=17,
+        fontsize=19,
         fontweight="bold",
         y=0.995,
     )
@@ -177,12 +192,12 @@ def save_hidden_count_ablation_plot(
         ),
         ha="center",
         va="bottom",
-        fontsize=10,
+        fontsize=11,
         color="#374151",
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    figure.tight_layout(rect=(0.02, 0.07, 0.98, 0.90))
+    figure.tight_layout(rect=(0.018, 0.075, 0.982, 0.905))
     figure.savefig(output_path, bbox_inches="tight")
     plt.close(figure)
 
