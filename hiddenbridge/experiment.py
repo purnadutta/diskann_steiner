@@ -2586,6 +2586,10 @@ def run_diskann_steiner_experiment(
     directional_offset_scale: float = 0.08,
     shell_scale: float = 0.12,
     seed: int = 42,
+    use_parlay: bool = False,
+    parlay_binary: str = "",
+    parlay_beam_width: int = 128,
+    parlay_num_passes: int = 2,
 ) -> dict[str, object]:
     import faiss
     import numpy as np
@@ -2681,46 +2685,77 @@ def run_diskann_steiner_experiment(
         max_degree=max_degree,
         candidate_pool=candidate_pool,
     )
-    baseline_candidate_ids, _, baseline_candidate_metadata = _candidate_graph_inputs(
-        vectors=original_vectors,
-        neighbor_count=baseline_candidate_pool,
-        batch_size=exact_batch_size,
-        candidate_source=candidate_source,
-        ivf_nlist=ivf_nlist,
-        ivf_nprobe=ivf_nprobe,
-        ivf_train_sample_size=ivf_train_sample_size,
-        ivf_batch_size=ivf_batch_size,
-        ivf_overfetch=ivf_overfetch,
-        seed=seed,
-        metric=metric,
-        existing_index_file=(
-            paths["indices_dir"]
-            / ("ivf_flat_l2.faiss" if metric == "euclidean" else "ivf_flat_ip.faiss")
-        )
-        if full_dataset_mode
-        else None,
-    )
-    baseline_graph_strategy = _resolved_graph_build_strategy(
-        graph_build_strategy=graph_build_strategy,
-        candidate_source=baseline_candidate_metadata["candidate_source"],
-        node_count=int(original_vectors.shape[0]),
-    )
-    baseline_adjacency = _build_graph_from_candidates(
-        vectors=original_vectors,
-        candidate_ids=baseline_candidate_ids,
-        max_degree=baseline_max_degree,
-        alpha=alpha,
-        graph_build_strategy=baseline_graph_strategy,
-        metric=metric,
-    )
-    if baseline_graph_strategy == "vamana":
-        baseline_adjacency = _ensure_reachability_from_entry(
-            adjacency=baseline_adjacency,
-            candidate_ids=baseline_candidate_ids,
-            vectors=original_vectors,
-            entry_point=baseline_entry_point,
+
+    if use_parlay:
+        # ---- ParlayANN graph build (parallel C++) ----
+        from hiddenbridge.parlay_backend import parlay_build_for_python_search
+        import time as _time
+        print(f"[ParlayANN] Building baseline graph ({original_vectors.shape[0]} points)...")
+        _t0 = _time.monotonic()
+        baseline_adjacency, _, parlay_build_time = parlay_build_for_python_search(
+            original_vectors=original_vectors,
+            hidden_vectors=None,
+            max_degree=baseline_max_degree,
+            beam_width=parlay_beam_width,
+            alpha=alpha,
+            num_passes=parlay_num_passes,
+            parlay_binary=parlay_binary or None,
             metric=metric,
         )
+        print(f"[ParlayANN] Baseline graph built in {_time.monotonic() - _t0:.2f}s "
+              f"(ParlayANN reports {parlay_build_time:.2f}s)")
+        # ParlayANN doesn't expose candidate IDs, but some Steiner builders
+        # (bridge, local_knn_mean) need them. Derive from adjacency + exact kNN.
+        baseline_candidate_ids, _ = _self_excluding_exact_knn(
+            vectors=original_vectors,
+            neighbor_count=baseline_candidate_pool,
+            batch_size=exact_batch_size,
+            metric=metric,
+        )
+        baseline_candidate_metadata = {"candidate_source": "parlay"}
+        baseline_graph_strategy = "parlay_vamana"
+    else:
+        # ---- Original Python graph build ----
+        baseline_candidate_ids, _, baseline_candidate_metadata = _candidate_graph_inputs(
+            vectors=original_vectors,
+            neighbor_count=baseline_candidate_pool,
+            batch_size=exact_batch_size,
+            candidate_source=candidate_source,
+            ivf_nlist=ivf_nlist,
+            ivf_nprobe=ivf_nprobe,
+            ivf_train_sample_size=ivf_train_sample_size,
+            ivf_batch_size=ivf_batch_size,
+            ivf_overfetch=ivf_overfetch,
+            seed=seed,
+            metric=metric,
+            existing_index_file=(
+                paths["indices_dir"]
+                / ("ivf_flat_l2.faiss" if metric == "euclidean" else "ivf_flat_ip.faiss")
+            )
+            if full_dataset_mode
+            else None,
+        )
+        baseline_graph_strategy = _resolved_graph_build_strategy(
+            graph_build_strategy=graph_build_strategy,
+            candidate_source=baseline_candidate_metadata["candidate_source"],
+            node_count=int(original_vectors.shape[0]),
+        )
+        baseline_adjacency = _build_graph_from_candidates(
+            vectors=original_vectors,
+            candidate_ids=baseline_candidate_ids,
+            max_degree=baseline_max_degree,
+            alpha=alpha,
+            graph_build_strategy=baseline_graph_strategy,
+            metric=metric,
+        )
+        if baseline_graph_strategy == "vamana":
+            baseline_adjacency = _ensure_reachability_from_entry(
+                adjacency=baseline_adjacency,
+                candidate_ids=baseline_candidate_ids,
+                vectors=original_vectors,
+                entry_point=baseline_entry_point,
+                metric=metric,
+            )
 
     validation_signals = _collect_validation_signals(
         original_vectors=original_vectors,
@@ -2806,32 +2841,57 @@ def run_diskann_steiner_experiment(
             max_degree=max_degree,
             candidate_pool=candidate_pool,
         )
-        candidate_ids, _, method_candidate_metadata = _candidate_graph_inputs(
-            vectors=augmented_vectors,
-            neighbor_count=method_candidate_pool,
-            batch_size=exact_batch_size,
-            candidate_source=candidate_source,
-            ivf_nlist=ivf_nlist,
-            ivf_nprobe=ivf_nprobe,
-            ivf_train_sample_size=ivf_train_sample_size,
-            ivf_batch_size=ivf_batch_size,
-            ivf_overfetch=ivf_overfetch,
-            seed=seed + 10_000 + len(method_name),
-            metric=metric,
-        )
-        method_graph_strategy = _resolved_graph_build_strategy(
-            graph_build_strategy=graph_build_strategy,
-            candidate_source=method_candidate_metadata["candidate_source"],
-            node_count=int(augmented_vectors.shape[0]),
-        )
-        adjacency = _build_graph_from_candidates(
-            vectors=augmented_vectors,
-            candidate_ids=candidate_ids,
-            max_degree=method_max_degree,
-            alpha=alpha,
-            graph_build_strategy=method_graph_strategy,
-            metric=metric,
-        )
+
+        if use_parlay:
+            # ---- ParlayANN graph build (parallel C++) ----
+            from hiddenbridge.parlay_backend import parlay_build_for_python_search
+            import time as _time
+            print(f"[ParlayANN] Building {method_name} graph ({augmented_vectors.shape[0]} points)...")
+            _t0 = _time.monotonic()
+            adjacency, _, parlay_build_time = parlay_build_for_python_search(
+                original_vectors=original_vectors,
+                hidden_vectors=hidden_vectors,
+                max_degree=method_max_degree,
+                beam_width=parlay_beam_width,
+                alpha=alpha,
+                num_passes=parlay_num_passes,
+                parlay_binary=parlay_binary or None,
+                metric=metric,
+            )
+            print(f"[ParlayANN] {method_name} graph built in {_time.monotonic() - _t0:.2f}s "
+                  f"(ParlayANN reports {parlay_build_time:.2f}s)")
+            candidate_ids = None
+            method_candidate_metadata = {"candidate_source": "parlay"}
+            method_graph_strategy = "parlay_vamana"
+        else:
+            # ---- Original Python graph build ----
+            candidate_ids, _, method_candidate_metadata = _candidate_graph_inputs(
+                vectors=augmented_vectors,
+                neighbor_count=method_candidate_pool,
+                batch_size=exact_batch_size,
+                candidate_source=candidate_source,
+                ivf_nlist=ivf_nlist,
+                ivf_nprobe=ivf_nprobe,
+                ivf_train_sample_size=ivf_train_sample_size,
+                ivf_batch_size=ivf_batch_size,
+                ivf_overfetch=ivf_overfetch,
+                seed=seed + 10_000 + len(method_name),
+                metric=metric,
+            )
+            method_graph_strategy = _resolved_graph_build_strategy(
+                graph_build_strategy=graph_build_strategy,
+                candidate_source=method_candidate_metadata["candidate_source"],
+                node_count=int(augmented_vectors.shape[0]),
+            )
+            adjacency = _build_graph_from_candidates(
+                vectors=augmented_vectors,
+                candidate_ids=candidate_ids,
+                max_degree=method_max_degree,
+                alpha=alpha,
+                graph_build_strategy=method_graph_strategy,
+                metric=metric,
+            )
+
         entry_hidden_offsets = method_specs[method_name].get("entry_hidden_offsets", [])
         if entry_hidden_offsets:
             entry_points = [
@@ -2844,7 +2904,7 @@ def run_diskann_steiner_experiment(
             int(original_vectors.shape[0]) + int(offset) for offset in query_seed_offsets
         ]
         method_query_seed_top_m = int(method_specs[method_name].get("query_seed_top_m", 0))
-        if method_graph_strategy == "vamana":
+        if method_graph_strategy == "vamana" and candidate_ids is not None:
             adjacency = _ensure_reachability_from_entry(
                 adjacency=adjacency,
                 candidate_ids=candidate_ids,
@@ -2908,7 +2968,8 @@ def run_diskann_steiner_experiment(
             "source_metadata": dataset_metadata,
         },
         "graph": {
-            "style": "Simplified Vamana/DiskANN-style fixed-degree proximity graph",
+            "style": ("ParlayANN parallel Vamana graph" if use_parlay
+                      else "Simplified Vamana/DiskANN-style fixed-degree proximity graph"),
             "requested_max_degree": int(max_degree),
             "requested_candidate_pool": int(candidate_pool),
             "alpha": float(alpha),
@@ -3027,6 +3088,10 @@ def main(
     directional_offset_scale: float = 0.08,
     shell_scale: float = 0.12,
     seed: int = 42,
+    use_parlay: bool = False,
+    parlay_binary: str = "",
+    parlay_beam_width: int = 128,
+    parlay_num_passes: int = 2,
 ) -> None:
     result = run_diskann_steiner_experiment(
         data_root=data_root,
@@ -3062,6 +3127,10 @@ def main(
         directional_offset_scale=directional_offset_scale,
         shell_scale=shell_scale,
         seed=seed,
+        use_parlay=use_parlay,
+        parlay_binary=parlay_binary,
+        parlay_beam_width=parlay_beam_width,
+        parlay_num_passes=parlay_num_passes,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
 
@@ -3101,6 +3170,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--directional-offset-scale", type=float, default=0.08)
     parser.add_argument("--shell-scale", type=float, default=0.12)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--use-parlay", action="store_true", default=False,
+                        help="Use ParlayANN C++ for graph build (much faster, parallel)")
+    parser.add_argument("--parlay-binary", default="",
+                        help="Path to ParlayANN neighbors binary")
+    parser.add_argument("--parlay-beam-width", type=int, default=128,
+                        help="Beam width for ParlayANN graph build")
+    parser.add_argument("--parlay-num-passes", type=int, default=2,
+                        help="Number of build passes for ParlayANN")
     return parser.parse_args()
 
 
