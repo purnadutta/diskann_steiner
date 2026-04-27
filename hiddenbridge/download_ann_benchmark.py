@@ -63,7 +63,7 @@ KNOWN_DATASETS = {
     "lastfm": {
         "dataset_subdir": "lastfm-64-dot",
         "dataset_url": "http://ann-benchmarks.com/lastfm-64-dot.hdf5",
-        "embedding_dim": 64,
+        "embedding_dim": 65,
         "metric": "angular",
         "normalize": True,
     },
