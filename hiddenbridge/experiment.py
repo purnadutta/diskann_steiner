@@ -44,11 +44,14 @@ def _result_paths(
     train_size: int,
     query_count: int,
     hidden_count: int,
+    max_degree: int = 0,
 ) -> dict[str, Path]:
     graph_dir = dataset_paths(data_root, dataset_subdir)["graph_navigation_analysis_dir"]
+    r_suffix = f"_R{max_degree}" if max_degree > 0 else ""
     stem = (
         "diskann_steiner_tradeoff_"
         f"{_dataset_slug(dataset_subdir)}_t{train_size}_q{query_count}_h{hidden_count}"
+        f"{r_suffix}"
     )
     return {
         "metrics_file": graph_dir / f"{stem}.json",
@@ -56,6 +59,55 @@ def _result_paths(
         "curve_table_file": graph_dir / f"{stem}_curve_table.csv",
         "method_summary_file": graph_dir / f"{stem}_method_summary.csv",
     }
+
+
+def _arrange_augmented_vectors(original_vectors, hidden_vectors, mode: str, seed: int):
+    """Build augmented vector array with Steiner points at specified positions.
+
+    Args:
+        mode: "end" (append hidden after original), "start" (prepend hidden before
+              original), or "random" (interleave at random positions).
+
+    Returns:
+        augmented_vectors: (N+H, D) array
+        orig_to_aug: (N,) int array — orig_to_aug[i] = augmented index of original vector i
+        hidden_to_aug: (H,) int array — hidden_to_aug[j] = augmented index of hidden vector j
+        is_visible: (N+H,) bool array — True at positions holding original vectors
+        aug_to_orig: (N+H,) int array — maps augmented index to original index, -1 for hidden
+    """
+    import numpy as np
+
+    n = int(original_vectors.shape[0])
+    h = int(hidden_vectors.shape[0])
+    total = n + h
+
+    if mode == "end":
+        augmented = np.vstack([original_vectors, hidden_vectors]).astype(np.float32, copy=False)
+        orig_to_aug = np.arange(n, dtype=np.int32)
+        hidden_to_aug = np.arange(n, n + h, dtype=np.int32)
+    elif mode == "start":
+        augmented = np.vstack([hidden_vectors, original_vectors]).astype(np.float32, copy=False)
+        orig_to_aug = np.arange(h, h + n, dtype=np.int32)
+        hidden_to_aug = np.arange(h, dtype=np.int32)
+    elif mode == "random":
+        rng = np.random.default_rng(seed)
+        positions = rng.permutation(total)
+        orig_positions = np.sort(positions[:n])
+        hidden_positions = np.sort(positions[n:])
+        augmented = np.empty((total, original_vectors.shape[1]), dtype=np.float32)
+        augmented[orig_positions] = original_vectors
+        augmented[hidden_positions] = hidden_vectors
+        orig_to_aug = orig_positions.astype(np.int32)
+        hidden_to_aug = hidden_positions.astype(np.int32)
+    else:
+        raise ValueError(f"Unsupported steiner_insertion mode: {mode}")
+
+    is_visible = np.zeros(total, dtype=np.bool_)
+    is_visible[orig_to_aug] = True
+    aug_to_orig = np.full(total, -1, dtype=np.int32)
+    for i in range(n):
+        aug_to_orig[orig_to_aug[i]] = i
+    return augmented, orig_to_aug, hidden_to_aug, is_visible, aug_to_orig
 
 
 def _resolved_metric_name(
@@ -1007,6 +1059,50 @@ def _build_pairwise_interpolation_steiner(
     )
 
 
+def _build_random_midpoint_steiner(
+    *,
+    original_vectors,
+    hidden_count: int,
+    seed: int,
+    metric: str,
+    **_,
+):
+    """Randomly sample pairs of original points and use their midpoint as Steiner points.
+
+    Unlike pairwise_interpolation (which targets long graph edges) or bridge
+    (which targets weak connectivity), this method is completely agnostic to
+    graph structure and distances.  It serves as a simple randomised baseline
+    for Steiner point placement.
+    """
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    n = int(original_vectors.shape[0])
+    idx_a = rng.integers(0, n, size=hidden_count)
+    idx_b = rng.integers(0, n, size=hidden_count)
+    # Avoid self-pairs
+    same = idx_a == idx_b
+    idx_b[same] = (idx_b[same] + 1) % n
+
+    hidden_vectors = (
+        original_vectors[idx_a].astype(np.float32, copy=True)
+        + original_vectors[idx_b].astype(np.float32, copy=False)
+    ) * 0.5
+    hidden_vectors = _prepare_vectors_for_metric(
+        hidden_vectors, metric=metric, fallback_vector=original_vectors[0],
+    )
+    return _prepare_method_payload(
+        hidden_vectors=hidden_vectors,
+        description=(
+            "Midpoints of randomly sampled pairs of original points. "
+            "Graph-agnostic and distance-agnostic baseline for Steiner placement."
+        ),
+        metadata={
+            "pair_count": int(hidden_count),
+        },
+    )
+
+
 def _build_cluster_centroid_steiner(
     *,
     original_vectors,
@@ -1309,6 +1405,7 @@ def _build_hierarchical_centroid_steiner(
     query_seed_candidate_count: int,
     query_seed_top_m: int,
     seed: int,
+    metric: str,
     **_,
 ):
     import numpy as np
@@ -1322,6 +1419,7 @@ def _build_hierarchical_centroid_steiner(
         hidden_count=coarse_count,
         niter=kmeans_niter,
         seed=seed,
+        metric=metric,
     )
     fine_centroids = []
     if fine_budget > 0 and coarse_centroids.shape[0] > 0:
@@ -1329,6 +1427,7 @@ def _build_hierarchical_centroid_steiner(
             vectors=original_vectors,
             centroids=coarse_centroids,
             batch_size=exact_batch_size,
+            metric=metric,
         )
         cluster_sizes = np.bincount(assignments, minlength=int(coarse_centroids.shape[0]))
         caps = np.maximum(cluster_sizes, 0)
@@ -1353,6 +1452,7 @@ def _build_hierarchical_centroid_steiner(
                     hidden_count=cluster_fine_count,
                     niter=max(8, kmeans_niter // 2),
                     seed=seed + 1000 + cluster_id,
+                    metric=metric,
                 )
             )
 
@@ -1384,6 +1484,7 @@ def _build_directional_centroid_steiner(
     seed: int,
     directional_directions_per_cluster: int,
     directional_offset_scale: float,
+    metric: str,
     **_,
 ):
     import numpy as np
@@ -1397,11 +1498,13 @@ def _build_directional_centroid_steiner(
         hidden_count=cluster_count,
         niter=kmeans_niter,
         seed=seed,
+        metric=metric,
     )
     assignments = _assign_to_centroids(
         vectors=original_vectors,
         centroids=centroids,
         batch_size=exact_batch_size,
+        metric=metric,
     )
 
     hidden_points: list[np.ndarray] = []
@@ -1454,6 +1557,7 @@ def _build_boundary_shell_steiner(
     exact_batch_size: int,
     seed: int,
     shell_scale: float,
+    metric: str,
     **_,
 ):
     import numpy as np
@@ -1464,11 +1568,13 @@ def _build_boundary_shell_steiner(
         hidden_count=cluster_count,
         niter=kmeans_niter,
         seed=seed,
+        metric=metric,
     )
     assignments = _assign_to_centroids(
         vectors=original_vectors,
         centroids=centroids,
         batch_size=exact_batch_size,
+        metric=metric,
     )
 
     hidden_points: list[np.ndarray] = []
@@ -1640,6 +1746,7 @@ def _build_local_knn_mean_steiner(
     query_seed_candidate_count: int,
     query_seed_top_m: int,
     seed: int,
+    metric: str,
     **_,
 ):
     import numpy as np
@@ -1678,6 +1785,7 @@ def _build_local_knn_mean_steiner(
         hidden_vectors,
         count=max(1, min(int(query_seed_candidate_count), int(hidden_vectors.shape[0]))),
         seed=seed + 19,
+        metric=metric,
     )
     return _prepare_method_payload(
         hidden_vectors=hidden_vectors,
@@ -1706,6 +1814,7 @@ def _method_registry():
     return {
         "pairwise_interpolation": _build_pairwise_interpolation_steiner,
         "cluster_centroid": _build_cluster_centroid_steiner,
+        "random_midpoint": _build_random_midpoint_steiner,
         "local_knn_mean": _build_local_knn_mean_steiner,
         "random_line": _build_random_line_steiner,
         "random_line_anchor": _build_random_line_anchor_steiner,
@@ -1735,12 +1844,28 @@ def _beam_search_topk(
     query_seed_node_ids=None,
     query_seed_top_m: int = 0,
     return_trace: bool = False,
+    is_visible=None,
+    aug_to_orig=None,
 ):
     import heapq
     import numpy as np
 
     if beam_size <= 0:
         raise ValueError("beam_size must be positive")
+
+    # Support both legacy visible_count threshold and explicit is_visible mask.
+    _is_visible = is_visible
+    _aug_to_orig = aug_to_orig
+
+    def _node_is_visible(node_id: int) -> bool:
+        if _is_visible is not None:
+            return bool(_is_visible[node_id])
+        return node_id < visible_count
+
+    def _to_orig_id(node_id: int) -> int:
+        if _aug_to_orig is not None:
+            return int(_aug_to_orig[node_id])
+        return node_id
 
     visited_scores: dict[int, float] = {}
     active: list[list[object]] = []
@@ -1762,7 +1887,7 @@ def _beam_search_topk(
         score = _pair_score(vectors[node_id], query_vector, metric)
         visited_scores[node_id] = score
         insert_active(node_id, score)
-        if node_id < visible_count:
+        if _node_is_visible(node_id):
             if len(top_real_heap) < top_k:
                 heapq.heappush(top_real_heap, (score, node_id))
             elif score > top_real_heap[0][0]:
@@ -1776,7 +1901,7 @@ def _beam_search_topk(
             if node_id in visited_scores:
                 continue
             visited_scores[node_id] = float(score)
-            if node_id < visible_count:
+            if _node_is_visible(node_id):
                 if len(top_real_heap) < top_k:
                     heapq.heappush(top_real_heap, (float(score), int(node_id)))
                 elif float(score) > top_real_heap[0][0]:
@@ -1805,9 +1930,12 @@ def _beam_search_topk(
         for neighbor_id in adjacency[node_id]:
             visit(int(neighbor_id))
 
-    predicted_ids = [node_id for _, node_id in sorted(top_real_heap, reverse=True)]
+    # Map predicted IDs back to original-space indices for ground truth comparison.
+    predicted_ids = [
+        _to_orig_id(node_id) for _, node_id in sorted(top_real_heap, reverse=True)
+    ]
     predicted_ids = predicted_ids[:top_k]
-    hidden_visits = sum(1 for node_id in visited_scores if node_id >= visible_count)
+    hidden_visits = sum(1 for node_id in visited_scores if not _node_is_visible(node_id))
     payload = {
         "predicted_ids": predicted_ids,
         "distance_computations": int(len(visited_scores)),
@@ -1915,6 +2043,98 @@ def _collect_validation_signals(
     }
 
 
+def _run_single_query(args):
+    """Worker function for parallel beam search. Runs one query and returns raw counts."""
+    (query_id, query_vector, vectors, adjacency, entry_points, beam_size,
+     top_k, visible_count, metric, query_seed_node_ids, query_seed_top_m,
+     is_visible, aug_to_orig, truth_ids_list) = args
+
+    result = _beam_search_topk(
+        query_vector=query_vector,
+        vectors=vectors,
+        adjacency=adjacency,
+        entry_points=entry_points,
+        beam_size=beam_size,
+        top_k=top_k,
+        visible_count=visible_count,
+        metric=metric,
+        query_seed_node_ids=query_seed_node_ids,
+        query_seed_top_m=query_seed_top_m,
+        is_visible=is_visible,
+        aug_to_orig=aug_to_orig,
+    )
+    predicted_ids = result["predicted_ids"]
+    truth_ids = truth_ids_list
+    truth_top1 = int(truth_ids[0])
+    predicted_top1 = int(predicted_ids[0]) if predicted_ids else -1
+    predicted_set = {int(x) for x in predicted_ids}
+    truth_set = {int(x) for x in truth_ids}
+
+    recall_at_1_hit = 1 if predicted_top1 == truth_top1 else 0
+    top1_in_topk_hit = 1 if truth_top1 in predicted_set else 0
+    predicted_top10 = set(int(x) for x in predicted_ids[:10])
+    truth_top10 = set(int(x) for x in truth_ids[:10])
+    recall_at_10 = len(predicted_top10 & truth_top10) / min(10.0, float(top_k))
+    recall_at_k = len(predicted_set & truth_set) / float(top_k)
+
+    return {
+        "recall_at_1_hit": recall_at_1_hit,
+        "recall_at_10": recall_at_10,
+        "recall_at_k": recall_at_k,
+        "top1_in_topk_hit": top1_in_topk_hit,
+        "distance_computations": int(result["distance_computations"]),
+        "visible_distance_computations": int(result["visible_distance_computations"]),
+        "hidden_distance_computations": int(result["hidden_distance_computations"]),
+        "hop_count": int(result["hop_count"]),
+    }
+
+
+# Module-level globals for shared data in worker processes (set via _init_worker).
+_shared_vectors = None
+_shared_adjacency = None
+_shared_ground_truth_ids = None
+_shared_query_vectors = None
+
+
+def _init_worker(vectors, adjacency, ground_truth_ids, query_vectors):
+    """Initialize shared read-only data in each worker process."""
+    global _shared_vectors, _shared_adjacency, _shared_ground_truth_ids, _shared_query_vectors
+    _shared_vectors = vectors
+    _shared_adjacency = adjacency
+    _shared_ground_truth_ids = ground_truth_ids
+    _shared_query_vectors = query_vectors
+
+
+def _worker_run_query(args):
+    """Thin wrapper that reads shared data from module globals."""
+    (query_id, beam_size, top_k, visible_count, metric,
+     entry_points, query_seed_node_ids, query_seed_top_m,
+     is_visible, aug_to_orig) = args
+
+    return _run_single_query((
+        query_id,
+        _shared_query_vectors[query_id],
+        _shared_vectors,
+        _shared_adjacency,
+        entry_points,
+        beam_size,
+        top_k,
+        visible_count,
+        metric,
+        query_seed_node_ids,
+        query_seed_top_m,
+        is_visible,
+        aug_to_orig,
+        [int(x) for x in _shared_ground_truth_ids[query_id]],
+    ))
+
+
+def _get_num_workers():
+    """Return number of parallel workers. Leaves 1 core free for OS."""
+    import os
+    return max(1, (os.cpu_count() or 1) - 1)
+
+
 def _evaluate_graph(
     method_name: str,
     vectors,
@@ -1928,65 +2148,83 @@ def _evaluate_graph(
     metric: str,
     query_seed_node_ids=None,
     query_seed_top_m: int = 0,
+    is_visible=None,
+    aug_to_orig=None,
+    max_comp_fraction: float = 0.0,
 ):
+    import multiprocessing as mp
+
     query_count = int(query_vectors.shape[0])
     variants: dict[str, dict[str, object]] = {}
-    for beam_size in beam_sizes:
-        total_distance_comps = 0
-        total_visible_distance_comps = 0
-        total_hidden_distance_comps = 0
-        total_hops = 0
-        recall_at_1_hits = 0
-        recall_at_k_sum = 0.0
-        top1_in_topk_hits = 0
+    comp_limit = float(max_comp_fraction) * float(visible_count) if max_comp_fraction > 0 else 0.0
+    num_workers = _get_num_workers()
 
-        for query_id in range(query_count):
-            result = _beam_search_topk(
-                query_vector=query_vectors[query_id],
-                vectors=vectors,
-                adjacency=adjacency,
-                entry_points=entry_points,
-                beam_size=int(beam_size),
-                top_k=int(top_k),
-                visible_count=visible_count,
-                metric=metric,
-                query_seed_node_ids=query_seed_node_ids,
-                query_seed_top_m=query_seed_top_m,
-            )
-            predicted_ids = result["predicted_ids"]
-            truth_ids = [int(item) for item in ground_truth_ids[query_id]]
-            truth_top1 = int(truth_ids[0])
-            predicted_top1 = int(predicted_ids[0]) if predicted_ids else -1
-            predicted_set = {int(item) for item in predicted_ids}
-            truth_set = {int(item) for item in truth_ids}
+    # Use fork-based pool so workers inherit vectors/adjacency without copying.
+    ctx = mp.get_context("fork")
+    pool = ctx.Pool(
+        processes=num_workers,
+        initializer=_init_worker,
+        initargs=(vectors, adjacency, ground_truth_ids, query_vectors),
+    )
 
-            if predicted_top1 == truth_top1:
-                recall_at_1_hits += 1
-            if truth_top1 in predicted_set:
-                top1_in_topk_hits += 1
-            recall_at_k_sum += len(predicted_set & truth_set) / float(top_k)
+    try:
+        for beam_size in beam_sizes:
+            work_items = [
+                (query_id, int(beam_size), int(top_k), visible_count, metric,
+                 entry_points, query_seed_node_ids, int(query_seed_top_m),
+                 is_visible, aug_to_orig)
+                for query_id in range(query_count)
+            ]
 
-            total_distance_comps += int(result["distance_computations"])
-            total_visible_distance_comps += int(result["visible_distance_computations"])
-            total_hidden_distance_comps += int(result["hidden_distance_computations"])
-            total_hops += int(result["hop_count"])
+            results_list = pool.map(_worker_run_query, work_items, chunksize=max(1, query_count // (num_workers * 4)))
 
-        variant_id = f"{method_name}_beam{beam_size}"
-        variants[variant_id] = {
-            "method": method_name,
-            "beam_size": int(beam_size),
-            "query_count": query_count,
-            "top_k": int(top_k),
-            "avg_distance_computations": total_distance_comps / float(query_count),
-            "avg_visible_distance_computations": total_visible_distance_comps
-            / float(query_count),
-            "avg_hidden_distance_computations": total_hidden_distance_comps
-            / float(query_count),
-            "avg_hop_count": total_hops / float(query_count),
-            "recall_at_1": recall_at_1_hits / float(query_count),
-            "recall_at_k": recall_at_k_sum / float(query_count),
-            "true_top1_hit_in_topk": top1_in_topk_hits / float(query_count),
-        }
+            total_distance_comps = 0
+            total_visible_distance_comps = 0
+            total_hidden_distance_comps = 0
+            total_hops = 0
+            recall_at_1_hits = 0
+            recall_at_10_sum = 0.0
+            recall_at_k_sum = 0.0
+            top1_in_topk_hits = 0
+
+            for r in results_list:
+                recall_at_1_hits += r["recall_at_1_hit"]
+                recall_at_10_sum += r["recall_at_10"]
+                recall_at_k_sum += r["recall_at_k"]
+                top1_in_topk_hits += r["top1_in_topk_hit"]
+                total_distance_comps += r["distance_computations"]
+                total_visible_distance_comps += r["visible_distance_computations"]
+                total_hidden_distance_comps += r["hidden_distance_computations"]
+                total_hops += r["hop_count"]
+
+            avg_dist_comps = total_distance_comps / float(query_count)
+            variant_id = f"{method_name}_beam{beam_size}"
+            variants[variant_id] = {
+                "method": method_name,
+                "beam_size": int(beam_size),
+                "query_count": query_count,
+                "top_k": int(top_k),
+                "avg_distance_computations": avg_dist_comps,
+                "avg_visible_distance_computations": total_visible_distance_comps
+                / float(query_count),
+                "avg_hidden_distance_computations": total_hidden_distance_comps
+                / float(query_count),
+                "avg_hop_count": total_hops / float(query_count),
+                "recall_at_1": recall_at_1_hits / float(query_count),
+                "recall_at_10": recall_at_10_sum / float(query_count),
+                "recall_at_k": recall_at_k_sum / float(query_count),
+                "true_top1_hit_in_topk": top1_in_topk_hits / float(query_count),
+            }
+            print(f"  [{method_name}] beam={beam_size}: R@1={variants[variant_id]['recall_at_1']:.4f}, "
+                  f"R@10={variants[variant_id]['recall_at_10']:.4f}, "
+                  f"avg_comps={avg_dist_comps:.0f} ({num_workers} workers)")
+            # Stop early if distance computations exceed the fraction threshold.
+            if comp_limit > 0 and avg_dist_comps >= comp_limit:
+                break
+    finally:
+        pool.close()
+        pool.join()
+
     return variants
 
 
@@ -2299,10 +2537,11 @@ def _save_tradeoff_plot(
     x_limits = _plot_x_bounds([payload])
     x_ticks = _plot_x_ticks([payload])
 
-    figure, axes = plt.subplots(1, 2, figsize=(19.2, 8.9), dpi=240, sharex=True)
+    figure, axes = plt.subplots(1, 3, figsize=(24, 8.9), dpi=240, sharex=True)
     figure.patch.set_facecolor("white")
     panels = [
         ("recall_at_1", "Recall@1"),
+        ("recall_at_10", "Recall@10"),
         ("recall_at_k", f"Recall@{payload['search']['top_k']}"),
     ]
 
@@ -2411,6 +2650,7 @@ def _build_curve_table_rows(payload: dict[str, object]) -> list[dict[str, object
                     ),
                     "avg_hop_count": float(item["avg_hop_count"]),
                     "recall_at_1": float(item["recall_at_1"]),
+                    "recall_at_10": float(item.get("recall_at_10", 0.0)),
                     "recall_at_k": float(item["recall_at_k"]),
                     "true_top1_hit_in_topk": float(item["true_top1_hit_in_topk"]),
                 }
@@ -2585,6 +2825,7 @@ def run_diskann_steiner_experiment(
     directional_directions_per_cluster: int = 2,
     directional_offset_scale: float = 0.08,
     shell_scale: float = 0.12,
+    max_comp_fraction: float = 0.1,
     seed: int = 42,
     use_parlay: bool = False,
     parlay_binary: str = "",
@@ -2615,7 +2856,19 @@ def run_diskann_steiner_experiment(
     if query_seed_candidate_count < 0 or query_seed_top_m < 0:
         raise ValueError("query_seed_candidate_count and query_seed_top_m must be non-negative")
 
-    beam_sizes = sorted({int(item.strip()) for item in beam_sizes_csv.split(",") if item.strip()})
+    if beam_sizes_csv.strip():
+        beam_sizes = sorted({int(item.strip()) for item in beam_sizes_csv.split(",") if item.strip()})
+    else:
+        beam_sizes = []
+    # Auto-generate beam sizes: start at 4, double until distance computations
+    # would exceed max_comp_fraction of train_size (checked at eval time).
+    if not beam_sizes:
+        beam_sizes = [4]
+    b = max(beam_sizes)
+    while b < train_size:
+        b = int(b * 2) if b < 64 else int(b * 1.5)
+        beam_sizes.append(b)
+    beam_sizes = sorted(set(beam_sizes))
     if not beam_sizes or beam_sizes[0] <= 0:
         raise ValueError("Expected at least one positive beam size")
 
@@ -2811,6 +3064,7 @@ def run_diskann_steiner_experiment(
             entry_points=[int(baseline_entry_point)],
             top_k=top_k,
             metric=metric,
+            max_comp_fraction=max_comp_fraction,
         )
     }
 
@@ -2832,9 +3086,10 @@ def run_diskann_steiner_experiment(
 
     for method_name in requested_methods:
         hidden_vectors = method_specs[method_name]["hidden_vectors"]
-        augmented_vectors = np.vstack([original_vectors, hidden_vectors]).astype(
-            np.float32, copy=False
-        )
+        # Always append Steiner points after originals; ParlayANN shuffles internally.
+        augmented_vectors = np.vstack([original_vectors, hidden_vectors]).astype(np.float32, copy=False)
+        visible_count = int(original_vectors.shape[0])
+
         # Every Steiner variant reuses the same graph builder and search loop for a clean comparison.
         method_max_degree, method_candidate_pool = _effective_graph_params(
             node_count=int(augmented_vectors.shape[0]),
@@ -2844,13 +3099,12 @@ def run_diskann_steiner_experiment(
 
         if use_parlay:
             # ---- ParlayANN graph build (parallel C++) ----
-            from hiddenbridge.parlay_backend import parlay_build_for_python_search
+            from hiddenbridge.parlay_backend import build_vamana_graph as _parlay_build
             import time as _time
             print(f"[ParlayANN] Building {method_name} graph ({augmented_vectors.shape[0]} points)...")
             _t0 = _time.monotonic()
-            adjacency, _, parlay_build_time = parlay_build_for_python_search(
-                original_vectors=original_vectors,
-                hidden_vectors=hidden_vectors,
+            adjacency, parlay_build_time = _parlay_build(
+                augmented_vectors,
                 max_degree=method_max_degree,
                 beam_width=parlay_beam_width,
                 alpha=alpha,
@@ -2892,16 +3146,19 @@ def run_diskann_steiner_experiment(
                 metric=metric,
             )
 
+        # Map entry points and seed offsets through the hidden_to_aug mapping.
+        # Entry points and query seeds: Steiner offsets are relative to hidden_vectors,
+        # so augmented index = visible_count + offset (since we always append).
         entry_hidden_offsets = method_specs[method_name].get("entry_hidden_offsets", [])
         if entry_hidden_offsets:
             entry_points = [
-                int(original_vectors.shape[0]) + int(offset) for offset in entry_hidden_offsets
+                int(visible_count + int(offset)) for offset in entry_hidden_offsets
             ]
         else:
             entry_points = [int(_pick_medoid_entry_point(augmented_vectors, metric=metric))]
         query_seed_offsets = method_specs[method_name].get("query_seed_hidden_offsets", [])
         query_seed_node_ids = [
-            int(original_vectors.shape[0]) + int(offset) for offset in query_seed_offsets
+            int(visible_count + int(offset)) for offset in query_seed_offsets
         ]
         method_query_seed_top_m = int(method_specs[method_name].get("query_seed_top_m", 0))
         if method_graph_strategy == "vamana" and candidate_ids is not None:
@@ -2920,12 +3177,13 @@ def run_diskann_steiner_experiment(
             query_vectors=query_vectors,
             ground_truth_ids=ground_truth_ids,
             beam_sizes=beam_sizes,
-            visible_count=int(original_vectors.shape[0]),
+            visible_count=visible_count,
             entry_points=entry_points,
             top_k=top_k,
             metric=metric,
             query_seed_node_ids=query_seed_node_ids,
             query_seed_top_m=method_query_seed_top_m,
+            max_comp_fraction=max_comp_fraction,
         )
         graph_entry_points[method_name] = [int(item) for item in entry_points]
         effective_params_by_method[method_name] = {
@@ -2951,6 +3209,7 @@ def run_diskann_steiner_experiment(
         train_size=int(original_vectors.shape[0]),
         query_count=int(query_vectors.shape[0]),
         hidden_count=hidden_count,
+        max_degree=max_degree,
     )
 
     payload = {
@@ -3025,6 +3284,7 @@ def run_diskann_steiner_experiment(
             "avg_hidden_distance_computations",
             "avg_hop_count",
             "recall_at_1",
+            "recall_at_10",
             "recall_at_k",
             "true_top1_hit_in_topk",
         ],
@@ -3056,7 +3316,8 @@ def run_diskann_steiner_experiment(
 
 def main(
     data_root: str | Path = "data",
-    dataset_subdir: str = "glove-200-angular",
+    dataset: str = "glove-200",
+    dataset_subdir: str | None = None,
     train_size: int = 12_000,
     query_count: int = 1_000,
     hidden_count: int = 1_024,
@@ -3087,12 +3348,77 @@ def main(
     directional_directions_per_cluster: int = 2,
     directional_offset_scale: float = 0.08,
     shell_scale: float = 0.12,
+    max_comp_fraction: float = 0.1,
     seed: int = 42,
     use_parlay: bool = False,
     parlay_binary: str = "",
     parlay_beam_width: int = 128,
     parlay_num_passes: int = 2,
 ) -> None:
+    # Resolve dataset name to subdir and auto-download if needed
+    registry = _dataset_registry()
+    if dataset_subdir is None:
+        if dataset not in registry:
+            raise ValueError(
+                f"Unknown dataset {dataset!r}. Known: {sorted(registry.keys())}"
+            )
+        spec = registry[dataset]
+        dataset_subdir = spec["dataset_subdir"]
+    else:
+        # Manual override — try to find spec for auto-download
+        spec = None
+        for s in registry.values():
+            if s["dataset_subdir"] == dataset_subdir:
+                spec = s
+                break
+
+    # Auto-download if dataset files are missing
+    paths = dataset_paths(data_root, dataset_subdir)
+    if not paths["train_file"].exists() or not paths["test_file"].exists():
+        if spec is None:
+            raise FileNotFoundError(
+                f"Dataset files missing for {dataset_subdir!r} and no download spec found"
+            )
+        fmt = spec.get("format", "hdf5")
+        if fmt == "bigann":
+            print(f"Dataset {dataset_subdir!r} not found locally. Downloading from big-ann-benchmarks...")
+            print(f"  WARNING: These are large files (1-8 GB). Download may take a while.")
+            from hiddenbridge.datasets import download_big_ann_dataset
+            download_big_ann_dataset(
+                data_root=data_root,
+                dataset_subdir=spec["dataset_subdir"],
+                base_url=spec["base_url"],
+                query_url=spec["query_url"],
+                embedding_dim=spec["embedding_dim"],
+                metric=spec["metric"],
+                dtype=spec.get("dtype", "float32"),
+                normalize=spec["normalize"],
+            )
+        elif fmt == "huggingface":
+            print(f"Dataset {dataset_subdir!r} not found locally. Downloading from HuggingFace...")
+            from hiddenbridge.datasets import download_huggingface_dataset
+            download_huggingface_dataset(
+                data_root=data_root,
+                dataset_subdir=spec["dataset_subdir"],
+                hf_repo=spec["hf_repo"],
+                embedding_column=spec["embedding_column"],
+                embedding_dim=spec["embedding_dim"],
+                metric=spec["metric"],
+                normalize=spec["normalize"],
+            )
+        else:
+            print(f"Dataset {dataset_subdir!r} not found locally. Downloading from ann-benchmarks.com...")
+            from hiddenbridge.datasets import download_ann_benchmark_dataset
+            download_ann_benchmark_dataset(
+                data_root=data_root,
+                dataset_subdir=spec["dataset_subdir"],
+                dataset_url=spec["dataset_url"],
+                embedding_dim=spec["embedding_dim"],
+                metric=spec["metric"],
+                normalize=spec["normalize"],
+            )
+        print(f"Download complete: {dataset_subdir}")
+
     result = run_diskann_steiner_experiment(
         data_root=data_root,
         dataset_subdir=dataset_subdir,
@@ -3126,6 +3452,7 @@ def main(
         directional_directions_per_cluster=directional_directions_per_cluster,
         directional_offset_scale=directional_offset_scale,
         shell_scale=shell_scale,
+        max_comp_fraction=max_comp_fraction,
         seed=seed,
         use_parlay=use_parlay,
         parlay_binary=parlay_binary,
@@ -3135,17 +3462,142 @@ def main(
     print(json.dumps(result, indent=2, sort_keys=True))
 
 
+def _dataset_registry():
+    """Known datasets from ann-benchmarks.com. Keys are short names for --dataset."""
+    return {
+        "glove-200": {
+            "dataset_subdir": "glove-200-angular",
+            "dataset_url": "http://ann-benchmarks.com/glove-200-angular.hdf5",
+            "embedding_dim": 200,
+            "metric": "angular",
+            "normalize": True,
+        },
+        "glove-100": {
+            "dataset_subdir": "glove-100-angular",
+            "dataset_url": "http://ann-benchmarks.com/glove-100-angular.hdf5",
+            "embedding_dim": 100,
+            "metric": "angular",
+            "normalize": True,
+        },
+        "glove-25": {
+            "dataset_subdir": "glove-25-angular",
+            "dataset_url": "http://ann-benchmarks.com/glove-25-angular.hdf5",
+            "embedding_dim": 25,
+            "metric": "angular",
+            "normalize": True,
+        },
+        "sift": {
+            "dataset_subdir": "sift-128-euclidean",
+            "dataset_url": "http://ann-benchmarks.com/sift-128-euclidean.hdf5",
+            "embedding_dim": 128,
+            "metric": "euclidean",
+            "normalize": False,
+        },
+        "fashion-mnist": {
+            "dataset_subdir": "fashion-mnist-784-euclidean",
+            "dataset_url": "http://ann-benchmarks.com/fashion-mnist-784-euclidean.hdf5",
+            "embedding_dim": 784,
+            "metric": "euclidean",
+            "normalize": False,
+        },
+        "gist": {
+            "dataset_subdir": "gist-960-euclidean",
+            "dataset_url": "http://ann-benchmarks.com/gist-960-euclidean.hdf5",
+            "embedding_dim": 960,
+            "metric": "euclidean",
+            "normalize": False,
+        },
+        "nytimes": {
+            "dataset_subdir": "nytimes-256-angular",
+            "dataset_url": "http://ann-benchmarks.com/nytimes-256-angular.hdf5",
+            "embedding_dim": 256,
+            "metric": "angular",
+            "normalize": True,
+        },
+        "lastfm": {
+            "dataset_subdir": "lastfm-64-dot",
+            "dataset_url": "http://ann-benchmarks.com/lastfm-64-dot.hdf5",
+            "embedding_dim": 64,
+            "metric": "angular",
+            "normalize": True,
+        },
+        "mnist": {
+            "dataset_subdir": "mnist-784-euclidean",
+            "dataset_url": "http://ann-benchmarks.com/mnist-784-euclidean.hdf5",
+            "embedding_dim": 784,
+            "metric": "euclidean",
+            "normalize": False,
+        },
+        # big-ann-benchmarks (NeurIPS'23) — binary format, large downloads
+        "yfcc": {
+            "dataset_subdir": "yfcc-10M-u8-192-l2",
+            "base_url": "https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/yfcc100M/base.10M.u8bin",
+            "query_url": "https://dl.fbaipublicfiles.com/billion-scale-ann-benchmarks/yfcc100M/query.public.100K.u8bin",
+            "embedding_dim": 192,
+            "metric": "euclidean",
+            "dtype": "uint8",
+            "normalize": False,
+            "format": "bigann",
+        },
+        "text2image": {
+            "dataset_subdir": "text2image-10M-f32-200-ip",
+            "base_url": "https://storage.yandexcloud.net/yr-secret-share/ann-datasets/T2I/base.10M.fbin",
+            "query_url": "https://storage.yandexcloud.net/yr-secret-share/ann-datasets/T2I/query.public.100K.fbin",
+            "embedding_dim": 200,
+            "metric": "angular",
+            "dtype": "float32",
+            "normalize": True,
+            "format": "bigann",
+        },
+        "msturing": {
+            "dataset_subdir": "msturing-10M-f32-100-l2",
+            "base_url": "https://comp21storage.blob.core.windows.net/publiccontainer/comp21/MSFT-TURING-ANNS/base1b.fbin.crop_nb_10000000",
+            "query_url": "https://comp21storage.blob.core.windows.net/publiccontainer/comp21/MSFT-TURING-ANNS/query100K.fbin",
+            "embedding_dim": 100,
+            "metric": "euclidean",
+            "dtype": "float32",
+            "normalize": False,
+            "format": "bigann",
+        },
+        # HuggingFace datasets
+        "openai-ada2": {
+            "dataset_subdir": "dbpedia-openai-ada2-1536",
+            "hf_repo": "KShivendu/dbpedia-entities-openai-1M",
+            "embedding_column": "openai",
+            "embedding_dim": 1536,
+            "metric": "angular",
+            "normalize": True,
+            "format": "huggingface",
+        },
+        "openai-3-large": {
+            "dataset_subdir": "dbpedia-openai3-large-3072",
+            "hf_repo": "Qdrant/dbpedia-entities-openai3-text-embedding-3-large-3072-1M",
+            "embedding_column": "openai",
+            "embedding_dim": 3072,
+            "metric": "angular",
+            "normalize": True,
+            "format": "huggingface",
+        },
+    }
+
+
 def parse_args() -> argparse.Namespace:
+    registry = _dataset_registry()
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-root", default="data")
-    parser.add_argument("--dataset-subdir", default="glove-200-angular")
+    parser.add_argument("--dataset", default="glove-200",
+                        choices=sorted(registry.keys()),
+                        help="Dataset short name (auto-downloads from ann-benchmarks.com if not cached)")
+    parser.add_argument("--dataset-subdir", default=None,
+                        help="Override dataset subdirectory (advanced; usually set automatically by --dataset)")
     parser.add_argument("--train-size", type=int, default=12_000)
     parser.add_argument("--query-count", type=int, default=1_000)
     parser.add_argument("--hidden-count", type=int, default=1_024)
-    parser.add_argument("--top-k", type=int, default=10)
+    parser.add_argument("--top-k", type=int, default=100)
     parser.add_argument("--max-degree", type=int, default=32)
     parser.add_argument("--candidate-pool", type=int, default=96)
-    parser.add_argument("--beam-sizes-csv", default="4,8,16,32,64,128,256")
+    parser.add_argument("--beam-sizes-csv", default="4",
+                        help="Initial beam sizes (auto-extended until 10%% of dataset is reached)")
     parser.add_argument("--methods-csv", default=",".join(_default_methods()))
     parser.add_argument("--candidate-source", default="auto")
     parser.add_argument("--graph-build-strategy", default="auto")
@@ -3169,6 +3621,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--directional-directions-per-cluster", type=int, default=2)
     parser.add_argument("--directional-offset-scale", type=float, default=0.08)
     parser.add_argument("--shell-scale", type=float, default=0.12)
+    parser.add_argument("--max-comp-fraction", type=float, default=0.1,
+                        help="Stop increasing beam width when avg distance computations exceed "
+                             "this fraction of train_size (e.g., 0.1 for 10%%). Default 0.1.")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--use-parlay", action="store_true", default=False,
                         help="Use ParlayANN C++ for graph build (much faster, parallel)")
