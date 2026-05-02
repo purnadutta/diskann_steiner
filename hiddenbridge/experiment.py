@@ -132,17 +132,17 @@ def _metric_display_name(metric: str) -> str:
     return "cosine via inner product on l2-normalized vectors"
 
 
-def _prepare_vectors_for_metric(matrix, metric: str, fallback_vector=None):
+def _prepare_vectors_for_metric(matrix, metric: str, fallback_vector=None, skip_normalize: bool = False):
     import numpy as np
 
     matrix = np.asarray(matrix, dtype=np.float32)
-    if metric == "cosine":
+    if metric == "cosine" and not skip_normalize:
         return _normalize_rows(matrix, fallback_vector=fallback_vector)
     return matrix.astype(np.float32, copy=False)
 
 
-def _prepare_vector_for_metric(vector, metric: str, fallback_vector=None):
-    return _prepare_vectors_for_metric([vector], metric, fallback_vector=fallback_vector)[0]
+def _prepare_vector_for_metric(vector, metric: str, fallback_vector=None, skip_normalize: bool = False):
+    return _prepare_vectors_for_metric([vector], metric, fallback_vector=fallback_vector, skip_normalize=skip_normalize)[0]
 
 
 def _score_batch(query_vectors, base_vectors, metric: str):
@@ -1872,13 +1872,21 @@ def _beam_search_topk(
     top_real_heap: list[tuple[float, int]] = []
     expanded_order: list[int] = []
 
+    # active is sorted descending by score: [(score, node_id, expanded), ...]
+    # We use (-score, node_id) tuples for bisect (ascending order = descending score).
+    import bisect
+    _active_sort_keys = []  # parallel to active: (-score, node_id)
+
     def insert_active(node_id: int, score: float) -> None:
-        insert_pos = len(active)
-        while insert_pos > 0 and float(active[insert_pos - 1][0]) < score:
-            insert_pos -= 1
-        active.insert(insert_pos, [float(score), int(node_id), False])
+        key = (-float(score), int(node_id))
+        pos = bisect.bisect_left(_active_sort_keys, key)
+        if pos >= beam_size:
+            return
+        _active_sort_keys.insert(pos, key)
+        active.insert(pos, [float(score), int(node_id), False])
         if len(active) > beam_size:
             active.pop()
+            _active_sort_keys.pop()
 
     def visit(node_id: int) -> None:
         node_id = int(node_id)
@@ -1927,8 +1935,26 @@ def _beam_search_topk(
         active[expand_idx][2] = True
         node_id = int(active[expand_idx][1])
         expanded_order.append(node_id)
-        for neighbor_id in adjacency[node_id]:
-            visit(int(neighbor_id))
+
+        # Batch distance computation for all unvisited neighbors
+        neighbors = adjacency[node_id]
+        unvisited = [int(nid) for nid in neighbors if int(nid) not in visited_scores]
+        if unvisited:
+            nid_array = np.asarray(unvisited, dtype=np.int32)
+            neighbor_vecs = vectors[nid_array]
+            if metric == "cosine":
+                scores = (query_vector @ neighbor_vecs.T).tolist()
+            else:
+                diff = neighbor_vecs - query_vector
+                scores = (-(diff * diff).sum(axis=1)).tolist()
+            for nid, score in zip(unvisited, scores):
+                visited_scores[nid] = score
+                insert_active(nid, score)
+                if _node_is_visible(nid):
+                    if len(top_real_heap) < top_k:
+                        heapq.heappush(top_real_heap, (score, nid))
+                    elif score > top_real_heap[0][0]:
+                        heapq.heapreplace(top_real_heap, (score, nid))
 
     # Map predicted IDs back to original-space indices for ground truth comparison.
     predicted_ids = [
@@ -2275,7 +2301,10 @@ def _summarize_method_results(
             deltas_comp = []
             deltas_hops = []
             for item in variants.values():
-                baseline_item = baseline_by_beam[int(item["beam_size"])]
+                beam_sz = int(item["beam_size"])
+                if beam_sz not in baseline_by_beam:
+                    continue
+                baseline_item = baseline_by_beam[beam_sz]
                 deltas_r1.append(float(item["recall_at_1"]) - float(baseline_item["recall_at_1"]))
                 deltas_rk.append(float(item["recall_at_k"]) - float(baseline_item["recall_at_k"]))
                 deltas_comp.append(
@@ -2285,12 +2314,13 @@ def _summarize_method_results(
                 deltas_hops.append(
                     float(item["avg_hop_count"]) - float(baseline_item["avg_hop_count"])
                 )
-            summary["matched_beam_mean_delta_recall_at_1"] = sum(deltas_r1) / len(deltas_r1)
-            summary["matched_beam_mean_delta_recall_at_k"] = sum(deltas_rk) / len(deltas_rk)
-            summary["matched_beam_mean_delta_distance_computations"] = (
-                sum(deltas_comp) / len(deltas_comp)
-            )
-            summary["matched_beam_mean_delta_hop_count"] = sum(deltas_hops) / len(deltas_hops)
+            if deltas_r1:
+                summary["matched_beam_mean_delta_recall_at_1"] = sum(deltas_r1) / len(deltas_r1)
+                summary["matched_beam_mean_delta_recall_at_k"] = sum(deltas_rk) / len(deltas_rk)
+                summary["matched_beam_mean_delta_distance_computations"] = (
+                    sum(deltas_comp) / len(deltas_comp)
+                )
+                summary["matched_beam_mean_delta_hop_count"] = sum(deltas_hops) / len(deltas_hops)
         by_method[method_name] = summary
 
     rank_r1 = sorted(
@@ -2831,6 +2861,8 @@ def run_diskann_steiner_experiment(
     parlay_binary: str = "",
     parlay_beam_width: int = 128,
     parlay_num_passes: int = 2,
+    metric_override: str = "",
+    no_normalize: bool = False,
 ) -> dict[str, object]:
     import faiss
     import numpy as np
@@ -2891,7 +2923,17 @@ def run_diskann_steiner_experiment(
     dataset_metadata = {}
     if dataset_metadata_file.exists():
         dataset_metadata = json.loads(dataset_metadata_file.read_text())
-    metric = _resolved_metric_name(dataset_subdir, dataset_metadata)
+    if metric_override and metric_override.strip():
+        override = metric_override.strip().lower()
+        if override in ("euclidean", "l2"):
+            metric = "euclidean"
+        elif override in ("cosine", "angular"):
+            metric = "cosine"
+        else:
+            raise ValueError(f"Unknown metric_override: {metric_override!r}. Use 'euclidean' or 'cosine'.")
+        print(f"  Metric override: using {metric!r} instead of dataset default")
+    else:
+        metric = _resolved_metric_name(dataset_subdir, dataset_metadata)
 
     train_embeddings = np.load(train_file, mmap_mode="r")
     test_embeddings = np.load(test_file, mmap_mode="r")
@@ -2909,12 +2951,18 @@ def run_diskann_steiner_experiment(
 
     original_vectors, train_indices = _sample_rows(train_embeddings, train_size, seed)
     query_vectors, query_indices = _sample_rows(test_embeddings, query_count, seed + 1)
-    original_vectors = _prepare_vectors_for_metric(original_vectors, metric=metric)
-    query_vectors = _prepare_vectors_for_metric(query_vectors, metric=metric)
+    original_vectors = _prepare_vectors_for_metric(original_vectors, metric=metric, skip_normalize=no_normalize)
+    query_vectors = _prepare_vectors_for_metric(query_vectors, metric=metric, skip_normalize=no_normalize)
 
     full_dataset_mode = int(original_vectors.shape[0]) == full_train_count
     ground_truth_neighbors_file = paths["ground_truth_neighbors_file"]
-    if full_dataset_mode and ground_truth_neighbors_file.exists():
+    # Skip saved ground truth when metric_override is active, because saved
+    # ground truth was computed under the original dataset metric, not the
+    # overridden one.
+    use_saved_gt = (full_dataset_mode
+                    and ground_truth_neighbors_file.exists()
+                    and not metric_override)
+    if use_saved_gt:
         saved_ground_truth = np.load(ground_truth_neighbors_file, mmap_mode="r")
         ground_truth_ids = np.asarray(
             saved_ground_truth[query_indices, :top_k],
@@ -3044,6 +3092,15 @@ def run_diskann_steiner_experiment(
         "metric": metric,
     }
 
+    # When --no-normalize is set, temporarily override _prepare_vectors_for_metric
+    # so Steiner builders also skip normalization
+    if no_normalize:
+        _original_prepare = _prepare_vectors_for_metric
+        def _patched_prepare(matrix, metric: str, fallback_vector=None, skip_normalize: bool = False):
+            return _original_prepare(matrix, metric=metric, fallback_vector=fallback_vector, skip_normalize=True)
+        import hiddenbridge.experiment as _self_module
+        _self_module._prepare_vectors_for_metric = _patched_prepare
+
     method_specs: dict[str, dict[str, object]] = {}
     for method_offset, method_name in enumerate(requested_methods):
         builder = registry[method_name]
@@ -3051,6 +3108,10 @@ def run_diskann_steiner_experiment(
             **build_kwargs,
             seed=seed + (method_offset * 101),
         )
+
+    # Restore original _prepare_vectors_for_metric if patched
+    if no_normalize:
+        _self_module._prepare_vectors_for_metric = _original_prepare
 
     results = {
         "baseline": _evaluate_graph(
@@ -3354,6 +3415,8 @@ def main(
     parlay_binary: str = "",
     parlay_beam_width: int = 128,
     parlay_num_passes: int = 2,
+    metric_override: str = "",
+    no_normalize: bool = False,
 ) -> None:
     # Resolve dataset name to subdir and auto-download if needed
     registry = _dataset_registry()
@@ -3458,6 +3521,8 @@ def main(
         parlay_binary=parlay_binary,
         parlay_beam_width=parlay_beam_width,
         parlay_num_passes=parlay_num_passes,
+        metric_override=metric_override,
+        no_normalize=no_normalize,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
 
@@ -3633,6 +3698,11 @@ def parse_args() -> argparse.Namespace:
                         help="Beam width for ParlayANN graph build")
     parser.add_argument("--parlay-num-passes", type=int, default=2,
                         help="Number of build passes for ParlayANN")
+    parser.add_argument("--metric-override", default="",
+                        choices=["", "euclidean", "cosine"],
+                        help="Override the dataset's default distance metric (e.g., run GloVe with euclidean)")
+    parser.add_argument("--no-normalize", action="store_true", default=False,
+                        help="Skip L2 normalization even for cosine/angular datasets")
     return parser.parse_args()
 
 

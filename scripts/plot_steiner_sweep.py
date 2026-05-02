@@ -32,19 +32,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-# Color palette: up to 8 distinct colors
+# Colorblind-friendly palette (Wong 2011 / IBM Design)
 SWEEP_COLORS = [
-    "#e41a1c",  # red
-    "#1f77b4",  # blue
-    "#ff7f0e",  # orange
-    "#2ca02c",  # green
-    "#9467bd",  # purple
-    "#8c564b",  # brown
-    "#17becf",  # cyan
-    "#d62728",  # dark red
+    "#0072B2",  # blue
+    "#D55E00",  # vermillion
+    "#009E73",  # bluish green
+    "#E69F00",  # orange
+    "#CC79A7",  # reddish purple
+    "#56B4E9",  # sky blue
+    "#F0E442",  # yellow
+    "#000000",  # black
 ]
 
-SWEEP_MARKERS = ["o", "s", "D", "^", "v", "P", "X", "*"]
+SWEEP_MARKERS = ["s", "D", "^", "v", "P", "X", "*", "h"]
+SWEEP_LINESTYLES = ["-", "-", "-", "-", "-", "-", "-", "-"]
 
 RECALL_COLS = [
     ("recall_at_1",  "Recall@1"),
@@ -92,6 +93,8 @@ def main():
     parser.add_argument("--methods", nargs="*", default=None,
                         help="Method name prefixes to include (default: all non-baseline)")
     parser.add_argument("--output", default="steiner_sweep.png")
+    parser.add_argument("--title", default=None,
+                        help="Override the auto-generated plot title")
     args = parser.parse_args()
 
     assert len(args.jsons) == len(args.labels), \
@@ -129,11 +132,12 @@ def main():
             if baseline_pts:
                 ax.plot(
                     [p[0] for p in baseline_pts], [p[1] for p in baseline_pts],
-                    color="#555555", linewidth=2.5, marker="o", markersize=5,
+                    color="#333333", linewidth=2.0, linestyle="--", dashes=(5, 3),
+                    marker="o", markersize=5, markerfacecolor="none", markeredgewidth=1.5,
                     label="Baseline", zorder=10,
                 )
 
-            # One line per percentage
+            # One line per percentage — solid, bold, distinct markers
             for idx, (data, label) in enumerate(zip(data_list, args.labels)):
                 pts = _extract(data, metric_key, method_prefix)
                 if not pts:
@@ -145,8 +149,8 @@ def main():
                     color=color,
                     linestyle="-",
                     marker=marker,
-                    markersize=4,
-                    linewidth=1.6,
+                    markersize=6,
+                    linewidth=2.5,
                     label=label,
                 )
 
@@ -162,14 +166,17 @@ def main():
                 ax.legend(fontsize=8, loc="lower right", ncol=1)
 
     # Overall title
-    ds = data_r32[0].get("dataset", {})
-    fig.suptitle(
-        f"Steiner Percentage Sweep — {ds.get('name', 'dataset')}, "
-        f"train={ds.get('train_size')}, queries={ds.get('query_count')}, "
-        f"top_k={data_r32[0].get('search', {}).get('top_k', '?')}, "
-        f"α={data_r32[0].get('graph', {}).get('alpha', '?')}",
-        fontsize=13, fontweight="bold",
-    )
+    if args.title:
+        plot_title = args.title
+    else:
+        ds = data_r32[0].get("dataset", {})
+        plot_title = (
+            f"Steiner Percentage Sweep — {ds.get('name', 'dataset')}, "
+            f"train={ds.get('train_size')}, queries={ds.get('query_count')}, "
+            f"top_k={data_r32[0].get('search', {}).get('top_k', '?')}, "
+            f"α={data_r32[0].get('graph', {}).get('alpha', '?')}"
+        )
+    fig.suptitle(plot_title, fontsize=13, fontweight="bold")
     fig.tight_layout(rect=[0, 0, 1, 0.95])
 
     output_path = Path(args.output)

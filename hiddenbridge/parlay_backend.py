@@ -214,7 +214,7 @@ def build_vamana_graph(
         cmd,
         capture_output=True,
         text=True,
-        timeout=600,
+        timeout=3600,
     )
     build_time = time.monotonic() - t0
 
@@ -303,7 +303,7 @@ def parlay_batch_search(
         "-n_base", str(n_base),
     ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
     if result.returncode != 0:
         raise RuntimeError(f"ParlayANN search failed:\n{result.stderr[-2000:]}")
 
