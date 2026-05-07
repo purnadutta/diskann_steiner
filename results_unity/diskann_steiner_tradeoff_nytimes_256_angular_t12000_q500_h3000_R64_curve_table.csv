@@ -1,0 +1,9 @@
+dataset,variant_id,method,actual_hidden_count,beam_size,avg_distance_computations,avg_visible_distance_computations,avg_hidden_distance_computations,avg_hop_count,recall_at_1,recall_at_10,recall_at_k,true_top1_hit_in_topk
+nytimes-256-angular,baseline_beam4,baseline,0,4,449.328,449.328,0.0,8.334,0.59,0.5270000000000002,0.30388000000000004,0.59
+nytimes-256-angular,baseline_beam8,baseline,0,8,659.41,659.41,0.0,12.8,0.724,0.6377999999999998,0.3984999999999998,0.724
+nytimes-256-angular,baseline_beam16,baseline,0,16,1018.932,1018.932,0.0,20.904,0.818,0.7335999999999994,0.5077600000000008,0.818
+nytimes-256-angular,baseline_beam32,baseline,0,32,1658.272,1658.272,0.0,36.24,0.894,0.8279999999999997,0.6323999999999996,0.894
+nytimes-256-angular,cluster_centroid_beam4,cluster_centroid,3000,4,415.102,304.594,110.508,7.204,0.634,0.5096000000000002,0.27294000000000035,0.634
+nytimes-256-angular,cluster_centroid_beam8,cluster_centroid,3000,8,625.506,469.736,155.77,11.76,0.734,0.6267999999999995,0.36146,0.734
+nytimes-256-angular,cluster_centroid_beam16,cluster_centroid,3000,16,978.834,748.302,230.532,19.868,0.826,0.723,0.4666599999999997,0.826
+nytimes-256-angular,cluster_centroid_beam32,cluster_centroid,3000,32,1608.756,1248.44,360.316,35.228,0.894,0.8063999999999998,0.5866000000000007,0.894

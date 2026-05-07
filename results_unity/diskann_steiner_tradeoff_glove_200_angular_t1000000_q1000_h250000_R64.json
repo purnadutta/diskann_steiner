@@ -1,0 +1,620 @@
+{
+  "artifacts": {
+    "curve_table_file": "/home/purnadutta_umass_edu/steiner_diskANN/data/glove-200-angular/analysis/graph_navigation/diskann_steiner_tradeoff_glove_200_angular_t1000000_q1000_h250000_R64_curve_table.csv",
+    "method_summary_file": "/home/purnadutta_umass_edu/steiner_diskANN/data/glove-200-angular/analysis/graph_navigation/diskann_steiner_tradeoff_glove_200_angular_t1000000_q1000_h250000_R64_method_summary.csv",
+    "metrics_file": "/home/purnadutta_umass_edu/steiner_diskANN/data/glove-200-angular/analysis/graph_navigation/diskann_steiner_tradeoff_glove_200_angular_t1000000_q1000_h250000_R64.json",
+    "plot_file": "/home/purnadutta_umass_edu/steiner_diskANN/data/glove-200-angular/analysis/graph_navigation/diskann_steiner_tradeoff_glove_200_angular_t1000000_q1000_h250000_R64.png"
+  },
+  "dataset": {
+    "dimension": 200,
+    "metric": "cosine via inner product on l2-normalized vectors",
+    "name": "glove-200-angular",
+    "query_count": 1000,
+    "sampled_query_indices_max": 9986,
+    "sampled_query_indices_min": 15,
+    "sampled_train_indices_max": 1183513,
+    "sampled_train_indices_min": 0,
+    "source_metadata": {
+      "dataset_name": "glove-200-angular",
+      "dataset_url": "http://ann-benchmarks.com/glove-200-angular.hdf5",
+      "dimension": 200,
+      "ground_truth_distances_file": "/Users/Purnadutta/Desktop/research/synthesis/steiner_diskANN/data/glove-200-angular/ground_truth_distances.npy",
+      "ground_truth_neighbors_file": "/Users/Purnadutta/Desktop/research/synthesis/steiner_diskANN/data/glove-200-angular/ground_truth_neighbors.npy",
+      "metric": "angular",
+      "original_train_count": 1183514,
+      "sample_indices_file": null,
+      "sampled_train": false,
+      "saved_train_count": 1183514,
+      "seed": 42,
+      "test_count": 10000,
+      "test_file": "/Users/Purnadutta/Desktop/research/synthesis/steiner_diskANN/data/glove-200-angular/test.npy",
+      "train_file": "/Users/Purnadutta/Desktop/research/synthesis/steiner_diskANN/data/glove-200-angular/train.npy",
+      "vectors_normalized": true
+    },
+    "train_size": 1000000
+  },
+  "graph": {
+    "alpha": 1.2,
+    "candidate_generation_by_method": {
+      "baseline": {
+        "candidate_source": "parlay",
+        "graph_build_strategy": "parlay_vamana"
+      },
+      "cluster_centroid": {
+        "candidate_source": "parlay",
+        "graph_build_strategy": "parlay_vamana"
+      }
+    },
+    "effective_params_by_method": {
+      "baseline": {
+        "candidate_pool": 96,
+        "max_degree": 64,
+        "node_count": 1000000
+      },
+      "cluster_centroid": {
+        "candidate_pool": 96,
+        "max_degree": 64,
+        "node_count": 1250000
+      }
+    },
+    "entry_points": {
+      "baseline": [
+        542095
+      ],
+      "cluster_centroid": [
+        1237290
+      ]
+    },
+    "requested_candidate_pool": 96,
+    "requested_max_degree": 64,
+    "style": "ParlayANN parallel Vamana graph"
+  },
+  "results": {
+    "baseline": {
+      "baseline_beam1093": {
+        "avg_distance_computations": 29901.565,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 1096.694,
+        "avg_visible_distance_computations": 29901.565,
+        "beam_size": 1093,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.971,
+        "recall_at_10": 0.9569999999999977,
+        "recall_at_k": 0.9166500000000031,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.971
+      },
+      "baseline_beam144": {
+        "avg_distance_computations": 5551.814,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 153.565,
+        "avg_visible_distance_computations": 5551.814,
+        "beam_size": 144,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.879,
+        "recall_at_10": 0.8518999999999975,
+        "recall_at_k": 0.7759900000000012,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.879
+      },
+      "baseline_beam16": {
+        "avg_distance_computations": 1217.861,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 24.402,
+        "avg_visible_distance_computations": 1217.861,
+        "beam_size": 16,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.618,
+        "recall_at_10": 0.6030999999999996,
+        "recall_at_k": 0.4830499999999993,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.618
+      },
+      "baseline_beam1639": {
+        "avg_distance_computations": 42532.57,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 1642.027,
+        "avg_visible_distance_computations": 42532.57,
+        "beam_size": 1639,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.976,
+        "recall_at_10": 0.9686999999999977,
+        "recall_at_k": 0.9368500000000028,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.976
+      },
+      "baseline_beam216": {
+        "avg_distance_computations": 7631.006,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 224.425,
+        "avg_visible_distance_computations": 7631.006,
+        "beam_size": 216,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.905,
+        "recall_at_10": 0.8799999999999983,
+        "recall_at_k": 0.8110700000000014,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.905
+      },
+      "baseline_beam2458": {
+        "avg_distance_computations": 60530.566,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 2460.509,
+        "avg_visible_distance_computations": 60530.566,
+        "beam_size": 2458,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.981,
+        "recall_at_10": 0.9767999999999974,
+        "recall_at_k": 0.9537800000000024,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.981
+      },
+      "baseline_beam32": {
+        "avg_distance_computations": 1879.762,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 41.354,
+        "avg_visible_distance_computations": 1879.762,
+        "beam_size": 32,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.725,
+        "recall_at_10": 0.7040999999999993,
+        "recall_at_k": 0.5993400000000008,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.725
+      },
+      "baseline_beam324": {
+        "avg_distance_computations": 10628.633,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 331.462,
+        "avg_visible_distance_computations": 10628.633,
+        "beam_size": 324,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.928,
+        "recall_at_10": 0.9045999999999986,
+        "recall_at_k": 0.8427500000000018,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.928
+      },
+      "baseline_beam3687": {
+        "avg_distance_computations": 85903.233,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 3689.017,
+        "avg_visible_distance_computations": 85903.233,
+        "beam_size": 3687,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.986,
+        "recall_at_10": 0.9851999999999987,
+        "recall_at_k": 0.9682100000000028,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.986
+      },
+      "baseline_beam4": {
+        "avg_distance_computations": 522.598,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 9.237,
+        "avg_visible_distance_computations": 522.598,
+        "beam_size": 4,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.344,
+        "recall_at_10": 0.32940000000000014,
+        "recall_at_k": 0.22591000000000003,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.344
+      },
+      "baseline_beam486": {
+        "avg_distance_computations": 14915.486,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 491.869,
+        "avg_visible_distance_computations": 14915.486,
+        "beam_size": 486,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.942,
+        "recall_at_10": 0.9235999999999984,
+        "recall_at_k": 0.8695900000000024,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.942
+      },
+      "baseline_beam5530": {
+        "avg_distance_computations": 121312.794,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 5531.554,
+        "avg_visible_distance_computations": 121312.794,
+        "beam_size": 5530,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.99,
+        "recall_at_10": 0.9906999999999989,
+        "recall_at_k": 0.9795500000000034,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.99
+      },
+      "baseline_beam64": {
+        "avg_distance_computations": 3035.026,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 74.042,
+        "avg_visible_distance_computations": 3035.026,
+        "beam_size": 64,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.813,
+        "recall_at_10": 0.7868999999999983,
+        "recall_at_k": 0.6914400000000015,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.813
+      },
+      "baseline_beam729": {
+        "avg_distance_computations": 21066.551,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 733.6,
+        "avg_visible_distance_computations": 21066.551,
+        "beam_size": 729,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.956,
+        "recall_at_10": 0.9419999999999978,
+        "recall_at_k": 0.8939900000000033,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.956
+      },
+      "baseline_beam8": {
+        "avg_distance_computations": 795.357,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 14.817,
+        "avg_visible_distance_computations": 795.357,
+        "beam_size": 8,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.492,
+        "recall_at_10": 0.4789999999999997,
+        "recall_at_k": 0.3534699999999994,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.492
+      },
+      "baseline_beam96": {
+        "avg_distance_computations": 4073.72,
+        "avg_hidden_distance_computations": 0.0,
+        "avg_hop_count": 105.866,
+        "avg_visible_distance_computations": 4073.72,
+        "beam_size": 96,
+        "method": "baseline",
+        "query_count": 1000,
+        "recall_at_1": 0.844,
+        "recall_at_10": 0.818999999999998,
+        "recall_at_k": 0.7362300000000018,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.844
+      }
+    },
+    "cluster_centroid": {
+      "cluster_centroid_beam1093": {
+        "avg_distance_computations": 31147.607,
+        "avg_hidden_distance_computations": 8898.188,
+        "avg_hop_count": 1095.562,
+        "avg_visible_distance_computations": 22249.419,
+        "beam_size": 1093,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.983,
+        "recall_at_10": 0.9656999999999978,
+        "recall_at_k": 0.9168300000000027,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.983
+      },
+      "cluster_centroid_beam144": {
+        "avg_distance_computations": 5437.063,
+        "avg_hidden_distance_computations": 1855.611,
+        "avg_hop_count": 150.018,
+        "avg_visible_distance_computations": 3581.452,
+        "beam_size": 144,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.901,
+        "recall_at_10": 0.853399999999998,
+        "recall_at_k": 0.7408400000000022,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.901
+      },
+      "cluster_centroid_beam16": {
+        "avg_distance_computations": 1096.766,
+        "avg_hidden_distance_computations": 468.408,
+        "avg_hop_count": 22.513,
+        "avg_visible_distance_computations": 628.358,
+        "beam_size": 16,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.687,
+        "recall_at_10": 0.6194999999999988,
+        "recall_at_k": 0.41778000000000026,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.687
+      },
+      "cluster_centroid_beam1639": {
+        "avg_distance_computations": 44523.286,
+        "avg_hidden_distance_computations": 12365.812,
+        "avg_hop_count": 1641.094,
+        "avg_visible_distance_computations": 32157.474,
+        "beam_size": 1639,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.987,
+        "recall_at_10": 0.9765999999999981,
+        "recall_at_k": 0.939820000000003,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.987
+      },
+      "cluster_centroid_beam216": {
+        "avg_distance_computations": 7632.019,
+        "avg_hidden_distance_computations": 2498.597,
+        "avg_hop_count": 221.474,
+        "avg_visible_distance_computations": 5133.422,
+        "beam_size": 216,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.922,
+        "recall_at_10": 0.8841999999999985,
+        "recall_at_k": 0.7852900000000009,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.922
+      },
+      "cluster_centroid_beam2458": {
+        "avg_distance_computations": 63605.798,
+        "avg_hidden_distance_computations": 17206.151,
+        "avg_hop_count": 2459.841,
+        "avg_visible_distance_computations": 46399.647,
+        "beam_size": 2458,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.995,
+        "recall_at_10": 0.9846999999999985,
+        "recall_at_k": 0.9588200000000027,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.995
+      },
+      "cluster_centroid_beam32": {
+        "avg_distance_computations": 1721.233,
+        "avg_hidden_distance_computations": 688.783,
+        "avg_hop_count": 38.764,
+        "avg_visible_distance_computations": 1032.45,
+        "beam_size": 32,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.772,
+        "recall_at_10": 0.7088999999999983,
+        "recall_at_k": 0.5307300000000004,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.772
+      },
+      "cluster_centroid_beam324": {
+        "avg_distance_computations": 10767.833,
+        "avg_hidden_distance_computations": 3392.392,
+        "avg_hop_count": 328.808,
+        "avg_visible_distance_computations": 7375.441,
+        "beam_size": 324,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.947,
+        "recall_at_10": 0.9093999999999974,
+        "recall_at_k": 0.8247600000000008,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.947
+      },
+      "cluster_centroid_beam3687": {
+        "avg_distance_computations": 90683.738,
+        "avg_hidden_distance_computations": 23884.061,
+        "avg_hop_count": 3688.396,
+        "avg_visible_distance_computations": 66799.677,
+        "beam_size": 3687,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.997,
+        "recall_at_10": 0.9914999999999989,
+        "recall_at_k": 0.9735700000000035,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.997
+      },
+      "cluster_centroid_beam4": {
+        "avg_distance_computations": 510.227,
+        "avg_hidden_distance_computations": 244.582,
+        "avg_hop_count": 8.958,
+        "avg_visible_distance_computations": 265.645,
+        "beam_size": 4,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.453,
+        "recall_at_10": 0.3829000000000006,
+        "recall_at_k": 0.20941000000000004,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.453
+      },
+      "cluster_centroid_beam486": {
+        "avg_distance_computations": 15284.344,
+        "avg_hidden_distance_computations": 4649.423,
+        "avg_hop_count": 489.806,
+        "avg_visible_distance_computations": 10634.921,
+        "beam_size": 486,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.962,
+        "recall_at_10": 0.9309999999999972,
+        "recall_at_k": 0.8587100000000022,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.962
+      },
+      "cluster_centroid_beam5530": {
+        "avg_distance_computations": 128696.814,
+        "avg_hidden_distance_computations": 32978.295,
+        "avg_hop_count": 5531.11,
+        "avg_visible_distance_computations": 95718.519,
+        "beam_size": 5530,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.998,
+        "recall_at_10": 0.9954999999999994,
+        "recall_at_k": 0.9845700000000048,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.998
+      },
+      "cluster_centroid_beam64": {
+        "avg_distance_computations": 2865.951,
+        "avg_hidden_distance_computations": 1065.791,
+        "avg_hop_count": 70.921,
+        "avg_visible_distance_computations": 1800.16,
+        "beam_size": 64,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.848,
+        "recall_at_10": 0.7876999999999987,
+        "recall_at_k": 0.6385500000000017,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.848
+      },
+      "cluster_centroid_beam729": {
+        "avg_distance_computations": 21800.404,
+        "avg_hidden_distance_computations": 6419.839,
+        "avg_hop_count": 732.102,
+        "avg_visible_distance_computations": 15380.565,
+        "beam_size": 729,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.969,
+        "recall_at_10": 0.9485999999999976,
+        "recall_at_k": 0.8895900000000027,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.969
+      },
+      "cluster_centroid_beam8": {
+        "avg_distance_computations": 729.412,
+        "avg_hidden_distance_computations": 331.216,
+        "avg_hop_count": 13.729,
+        "avg_visible_distance_computations": 398.196,
+        "beam_size": 8,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.566,
+        "recall_at_10": 0.5061999999999997,
+        "recall_at_k": 0.3022,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.566
+      },
+      "cluster_centroid_beam96": {
+        "avg_distance_computations": 3922.618,
+        "avg_hidden_distance_computations": 1398.191,
+        "avg_hop_count": 102.65,
+        "avg_visible_distance_computations": 2524.427,
+        "beam_size": 96,
+        "method": "cluster_centroid",
+        "query_count": 1000,
+        "recall_at_1": 0.879,
+        "recall_at_10": 0.8251999999999979,
+        "recall_at_k": 0.693530000000001,
+        "top_k": 100,
+        "true_top1_hit_in_topk": 0.879
+      }
+    }
+  },
+  "search": {
+    "algorithm": "beam search over graph neighbors",
+    "beam_sizes": [
+      4,
+      8,
+      16,
+      32,
+      64,
+      96,
+      144,
+      216,
+      324,
+      486,
+      729,
+      1093,
+      1639,
+      2458,
+      3687,
+      5530,
+      8295,
+      12442,
+      18663,
+      27994,
+      41991,
+      62986,
+      94479,
+      141718,
+      212577,
+      318865,
+      478297,
+      717445,
+      1076167
+    ],
+    "distance_computation_definition": "One exact query-to-node score evaluation for each unique visited node, including hidden Steiner nodes",
+    "failure_recall_threshold": 0.5,
+    "ground_truth_source": "brute_force_exact_search",
+    "query_seed_candidate_count": 24,
+    "query_seed_top_m": 4,
+    "top_k": 100,
+    "validation_beam_size": 16,
+    "validation_query_count": 250
+  },
+  "status": "completed",
+  "steiner": {
+    "methods": {
+      "cluster_centroid": {
+        "actual_hidden_count": 250000,
+        "cluster_count": 250000,
+        "description": "Spherical k-means centroids used as routing-only nodes.",
+        "kmeans_niter": 20,
+        "query_seed_candidate_count": 24,
+        "query_seed_top_m": 4
+      }
+    },
+    "requested_hidden_count": 250000
+  },
+  "summary": {
+    "best_method_by_recall_at_k_auc": "baseline",
+    "by_method": {
+      "baseline": {
+        "best_variant_avg_distance_computations": 121312.794,
+        "best_variant_beam_size": 5530,
+        "best_variant_id": "baseline_beam5530",
+        "best_variant_recall_at_1": 0.99,
+        "best_variant_recall_at_k": 0.9795500000000034,
+        "recall_at_1_auc": 0.8307587334803217,
+        "recall_at_k_auc": 0.7451136725021726
+      },
+      "cluster_centroid": {
+        "best_variant_avg_distance_computations": 128696.814,
+        "best_variant_beam_size": 5530,
+        "best_variant_id": "cluster_centroid_beam5530",
+        "best_variant_recall_at_1": 0.998,
+        "best_variant_recall_at_k": 0.9845700000000048,
+        "matched_beam_mean_delta_distance_computations": 1182.9106875000007,
+        "matched_beam_mean_delta_hop_count": -1.7933750000000201,
+        "matched_beam_mean_delta_recall_at_1": 0.032250000000000015,
+        "matched_beam_mean_delta_recall_at_k": -0.023304374999999905,
+        "recall_at_1_auc": 0.8688425303467459,
+        "recall_at_k_auc": 0.7255154167673359
+      }
+    },
+    "ranking_by_recall_at_1_auc": [
+      "cluster_centroid",
+      "baseline"
+    ],
+    "ranking_by_recall_at_k_auc": [
+      "baseline",
+      "cluster_centroid"
+    ]
+  },
+  "validation": {
+    "failed_query_count": 137
+  }
+}

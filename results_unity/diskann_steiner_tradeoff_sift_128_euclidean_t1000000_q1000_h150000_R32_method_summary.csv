@@ -1,0 +1,3 @@
+dataset,method,actual_hidden_count,recall_at_1_auc,recall_at_k_auc,best_variant_id,best_variant_beam_size,best_variant_recall_at_1,best_variant_recall_at_k,best_variant_avg_distance_computations,matched_beam_mean_delta_recall_at_1,matched_beam_mean_delta_recall_at_k,matched_beam_mean_delta_distance_computations,matched_beam_mean_delta_hop_count
+sift-128-euclidean,baseline,0,0.9640566829199255,0.9045772922722513,baseline_beam12442,12442,0.996,0.9998900000000001,67983.825,0.0,0.0,0.0,0.0
+sift-128-euclidean,cluster_centroid,150000,0.9536344265998911,0.8691178966170978,cluster_centroid_beam27994,27994,0.996,0.9999000000000001,125908.188,-0.010700000000000005,-0.03222649999999997,1487.71985,-0.8633499999999629

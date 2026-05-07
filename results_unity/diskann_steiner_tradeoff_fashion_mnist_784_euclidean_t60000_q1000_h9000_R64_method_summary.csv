@@ -1,0 +1,3 @@
+dataset,method,actual_hidden_count,recall_at_1_auc,recall_at_k_auc,best_variant_id,best_variant_beam_size,best_variant_recall_at_1,best_variant_recall_at_k,best_variant_avg_distance_computations,matched_beam_mean_delta_recall_at_1,matched_beam_mean_delta_recall_at_k,matched_beam_mean_delta_distance_computations,matched_beam_mean_delta_hop_count
+fashion-mnist-784-euclidean,baseline,0,0.993186721660161,0.9481200849371286,baseline_beam2458,2458,1.0,0.9999600000000001,6758.679,0.0,0.0,0.0,0.0
+fashion-mnist-784-euclidean,cluster_centroid,9000,0.9929517838515883,0.9359997599558928,cluster_centroid_beam2458,2458,1.0,0.9999600000000001,6863.377,-0.0010714285714285723,-0.018972142857142764,64.35885714285713,-1.26814285714283

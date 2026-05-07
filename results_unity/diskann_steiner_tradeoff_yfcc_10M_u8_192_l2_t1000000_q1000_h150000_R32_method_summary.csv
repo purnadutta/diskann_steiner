@@ -1,0 +1,3 @@
+dataset,method,actual_hidden_count,recall_at_1_auc,recall_at_k_auc,best_variant_id,best_variant_beam_size,best_variant_recall_at_1,best_variant_recall_at_k,best_variant_avg_distance_computations,matched_beam_mean_delta_recall_at_1,matched_beam_mean_delta_recall_at_k,matched_beam_mean_delta_distance_computations,matched_beam_mean_delta_hop_count
+yfcc-10M-u8-192-l2,baseline,0,0.9655541730066362,0.921273365198967,baseline_beam27994,27994,1.0,0.9997900000000002,123766.134,0.0,0.0,0.0,0.0
+yfcc-10M-u8-192-l2,cluster_centroid,150000,0.925621526893862,0.8386549369420176,cluster_centroid_beam27994,27994,0.999,0.9966200000000022,132612.724,-0.041,-0.08332749999999925,1159.9952499999993,-1.5855500000000402

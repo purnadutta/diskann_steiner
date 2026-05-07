@@ -3604,6 +3604,12 @@ def _dataset_registry():
             "normalize": False,
             "format": "bigann",
         },
+        "yfcc-angular": {
+            "dataset_subdir": "yfcc-192-angular",
+            "embedding_dim": 192,
+            "metric": "angular",
+            "normalize": True,
+        },
         "text2image": {
             "dataset_subdir": "text2image-10M-f32-200-ip",
             "base_url": "https://storage.yandexcloud.net/yr-secret-share/ann-datasets/T2I/base.10M.fbin",

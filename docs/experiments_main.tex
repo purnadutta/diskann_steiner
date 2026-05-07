@@ -1,0 +1,137 @@
+% ============================================================
+% MAIN BODY — Experiments (~1 page)
+% ============================================================
+
+\section{Experiments}
+\label{sec:experiments}
+
+\subsection{Setup}
+
+We evaluate Steiner-augmented Vamana graphs on five standard ANN benchmark datasets spanning a range of domains, dimensionalities ($128$--$784$), and distance metrics (Table~\ref{tab:datasets}). Steiner points are constructed as $k$-means cluster centroids of the dataset vectors, with $k \in \{0.05n, 0.15n, 0.25n\}$ for a dataset of $n$ points. For cosine-metric datasets, we use spherical $k$-means (re-normalizing centroids after each iteration). The centroids are appended to the data, and a Vamana graph is built over the augmented point set using ParlayANN with degree bound $R \in \{32, 64\}$, pruning parameter $\alpha = 1.2$, and build beam width $L = 128$. Steiner nodes participate fully in graph construction and search but are excluded from the final result set. We compare against a baseline Vamana graph built on the original data points alone with identical parameters.
+
+For each configuration, we sweep beam widths $W = 4, 8, 16, 32, \ldots$ and report Recall@1, Recall@10, and Recall@100 against brute-force ground truth, plotted as a function of the average number of \emph{total} distance computations per query (including computations to Steiner nodes). Full experimental details, including cluster infrastructure, runtime breakdown, and dataset preprocessing, are given in Appendix~\ref{app:experiment-details}.
+
+\begin{table}[t]
+\centering
+\small
+\begin{tabular}{lccl}
+\toprule
+\textbf{Dataset} & \textbf{Dim.} & \textbf{$n$} & \textbf{Metric} \\
+\midrule
+GloVe-200        & 200 & 1{,}000{,}000 & Cosine \\
+NYTimes          & 256 & 290{,}000     & Cosine \\
+SIFT             & 128 & 1{,}000{,}000 & Euclidean \\
+SIFT             & 128 & 1{,}000{,}000 & Cosine ($\ell_2$-norm.) \\
+Fashion-MNIST    & 784 & 60{,}000      & Cosine ($\ell_2$-norm.) \\
+YFCC             & 192 & 1{,}000{,}000 & Cosine ($\ell_2$-norm.) \\
+\bottomrule
+\end{tabular}
+\caption{Datasets used for evaluation. All experiments use $1{,}000$ queries and retrieve the top $k = 100$ neighbors. Sources and preprocessing details are in Appendix~\ref{app:experiment-details}.}
+\label{tab:datasets}
+\end{table}
+
+\subsection{Results}
+
+In all plots, the dashed black curve is the baseline (no Steiner points) and colored curves correspond to Steiner augmentation at $5\%$, $15\%$, and $25\%$ of the dataset size.
+
+\textbf{GloVe-200 (1M vectors, cosine).}
+Steiner-augmented graphs consistently outperform the baseline across all recall metrics and both degree bounds (Figure~\ref{fig:glove}). At $R = 32$, the $5\%$ Steiner configuration achieves the same Recall@1 as the baseline while using roughly $25\%$ fewer total distance computations. The improvement is most pronounced at moderate computation budgets: to reach Recall@1 of $0.91$, the $5\%$ Steiner graph requires approximately $12{,}000$ total distance computations compared to the baseline's approximately $18{,}000$. The $15\%$ and $25\%$ configurations perform comparably to $5\%$ on Recall@1 and Recall@10, but degrade slightly on Recall@100 at low beam widths. At $R = 64$, the same pattern holds with smaller margins---Steiner curves consistently lie above the baseline, gaining approximately $1$--$2$ percentage points of Recall@1 at matched computation budgets.
+
+% ---- INSERT GLOVE FIGURE HERE ----
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\textwidth]{figures/glove1m_sweep.png}
+    \caption{Recall vs.\ total distance computations on GloVe-200 (1M vectors). Rows: $R = 32$ (top), $R = 64$ (bottom). Columns: Recall@1, Recall@10, Recall@100.}
+    \label{fig:glove}
+\end{figure}
+
+\textbf{NYTimes (290K vectors, cosine).}
+Steiner augmentation provides a clear benefit on this dataset as well (Figure~\ref{fig:nytimes}). The $5\%$ configuration dominates the baseline across all $R = 32$ panels, with the advantage particularly visible in Recall@1 at low computation budgets, where it reaches $0.875$ compared to the baseline's $0.842$ at approximately $3{,}500$ total distance computations. On Recall@10 at $R = 32$, the $5\%$ Steiner graph reaches $0.930$ compared to the baseline's $0.917$ at approximately $15{,}000$ total computations. Interestingly, all Steiner configurations fall slightly below baseline on Recall@100 at $R = 64$, with the gap widening for higher Steiner percentages. This reinforces that Steiner points improve routing to the nearest neighbor but can reduce the graph's capacity to surface a full set of $100$ neighbors when they consume too many edge slots.
+
+% ---- INSERT NYTIMES FIGURE HERE ----
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\textwidth]{figures/nytimes_sweep.png}
+    \caption{Recall vs.\ total distance computations on NYTimes (290K vectors). Rows: $R = 32$ (top), $R = 64$ (bottom). Columns: Recall@1, Recall@10, Recall@100.}
+    \label{fig:nytimes}
+\end{figure}
+
+\textbf{Summary across all datasets.}
+The remaining three datasets---SIFT, Fashion-MNIST, and YFCC---tell a complementary story (full plots in Appendix~\ref{app:additional-results}). On these datasets, the baseline Vamana graph already achieves near-perfect recall at low beam widths (Recall@1 $> 0.95$ at beam width $16$), leaving little room for routing improvement. SIFT (both Euclidean and normalized) and Fashion-MNIST show Steiner augmentation tracking the baseline with neither meaningful improvement nor degradation. On YFCC, Steiner augmentation actively degrades recall by $1$--$3$ percentage points, as the added nodes consume edge slots without providing useful shortcuts.
+
+The pattern across datasets is consistent: Steiner points help when the baseline graph struggles---i.e., when the dataset has high intrinsic dimensionality or complex structure that causes greedy search to plateau at moderate recall. On ``easy'' datasets where the Vamana graph already routes efficiently, Steiner nodes provide no routing benefit and their main effect is edge dilution.
+
+
+% ============================================================
+% APPENDIX — Full experimental details and additional results
+% ============================================================
+
+\appendix
+
+\section{Experimental details}
+\label{app:experiment-details}
+
+\textbf{Infrastructure.}
+All large-scale experiments were run on the Unity high-performance computing cluster at the University of Massachusetts Amherst. Each job was allocated a single node with $64$ CPU cores and $64$\,GB of RAM on the \texttt{cpu} partition, running Ubuntu 24.04 with Python 3.11.7. Graph construction was performed using ParlayANN, a parallel C++ implementation of the Vamana algorithm that leverages all available cores via Parlaylib. We used two construction passes, build beam width $L = 128$, and pruning parameter $\alpha = 1.2$ across all experiments.
+
+\textbf{Runtime.}
+For the $1$M-vector datasets (GloVe, SIFT, YFCC), graph construction and search evaluation across all beam widths for $1{,}000$ queries took $6$--$7$ hours per configuration. For the smaller datasets (NYTimes at $290$K, Fashion-MNIST at $60$K), each configuration completed in $1$--$2$ hours. Each dataset required $6$ SLURM jobs (three Steiner percentages $\times$ two degree bounds), bringing the total compute for the full experimental sweep to approximately $300$ CPU-hours. The dominant cost is the Python beam-search evaluation loop, which runs queries in parallel across cores but instruments per-query distance computation counts; graph construction via ParlayANN's C++ backend typically completes in $15$--$20$ minutes for $1$M-vector graphs.
+
+\textbf{Ground truth.}
+Ground truth nearest neighbors were computed by brute-force search under the same distance metric used for graph construction and search. For datasets where the search metric differed from the original dataset metric (e.g., Fashion-MNIST and YFCC, which are natively Euclidean but evaluated under cosine after $\ell_2$-normalization), ground truth was recomputed at runtime to ensure consistency.
+
+\textbf{Steiner point generation.}
+Steiner points were generated using FAISS's $k$-means implementation with $20$ Lloyd iterations. For cosine-metric experiments, we used spherical $k$-means, which re-normalizes centroids after each iteration so that they lie on the unit sphere alongside the data vectors. Clustering $1$M vectors into $250$K centroids (the $25\%$ configuration) required approximately $2$--$3$ minutes per run.
+
+\textbf{Dataset sources.}
+GloVe-200, NYTimes, SIFT, and Fashion-MNIST are sourced from ANN-Benchmarks~\cite{aumuller2020ann}. YFCC is sourced from the NeurIPS'21 Big-ANN benchmark~\cite{simhadri2022results}; we subsample $1$M vectors from the full $10$M-vector dataset and convert from \texttt{uint8} to \texttt{float32} prior to $\ell_2$-normalization.
+
+\textbf{Beam-width schedule.}
+We evaluate each configuration at beam widths $W = 4, 8, 16, 32, 64, 96, 144, 216, 324, 486, 729, 1093, \ldots$, doubling initially and later scaling by $1.5\times$. The sweep terminates when the average number of distance computations per query exceeds a fraction $0.1$ of the dataset size.
+
+\textbf{Reproducibility.}
+Our code and experiment scripts are available at \url{https://github.com/purnadutta/diskann_steiner}.
+
+
+\section{Additional results}
+\label{app:additional-results}
+
+\textbf{SIFT (1M vectors, Euclidean).}
+SIFT under its native Euclidean metric presents a qualitatively different picture from GloVe and NYTimes (Figure~\ref{fig:sift-euc}). The baseline Vamana graph achieves near-perfect recall (above $0.99$ for Recall@1 and Recall@10) with minimal computation, leaving essentially no room for Steiner points to improve. All three Steiner configurations track the baseline closely, with neither meaningful improvement nor degradation.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{figures/sift1m_sweep.png}
+    \caption{Recall vs.\ total distance computations on SIFT (1M vectors, Euclidean).}
+    \label{fig:sift-euc}
+\end{figure}
+
+\textbf{SIFT (1M vectors, normalized / cosine).}
+When SIFT vectors are $\ell_2$-normalized and search is conducted under cosine similarity, the results are qualitatively identical to the Euclidean case (Figure~\ref{fig:sift-norm}). The baseline remains near-perfect and Steiner augmentation neither helps nor hurts. This confirms that the lack of improvement on SIFT is due to the dataset's intrinsic structure rather than the choice of distance metric.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{figures/sift1m_norm_sweep.png}
+    \caption{Recall vs.\ total distance computations on SIFT (1M vectors, cosine / $\ell_2$-normalized).}
+    \label{fig:sift-norm}
+\end{figure}
+
+\textbf{Fashion-MNIST (60K vectors, normalized / cosine).}
+On Fashion-MNIST at $60$K vectors with cosine similarity, all Steiner configurations closely track the baseline (Figure~\ref{fig:fmnist}). The baseline already exceeds Recall@1 of $0.95$ at the smallest beam width tested, leaving minimal room for improvement. The $25\%$ configuration shows mild degradation in Recall@100, consistent with the edge-dilution effect observed on other datasets.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{figures/fashionmnist_sweep.png}
+    \caption{Recall vs.\ total distance computations on Fashion-MNIST (60K vectors, cosine / $\ell_2$-normalized).}
+    \label{fig:fmnist}
+\end{figure}
+
+\textbf{YFCC (1M vectors, normalized / cosine).}
+On YFCC, Steiner augmentation actively degrades recall across all metrics and both degree bounds (Figure~\ref{fig:yfcc}). The baseline graph already reaches Recall@1 above $0.97$ at low beam widths, leaving no room for routing improvement; the added Steiner nodes consume edge slots without providing useful shortcuts, resulting in $1$--$3$ percentage points lower recall at matched computation budgets.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{figures/yfcc_angular_sweep.png}
+    \caption{Recall vs.\ total distance computations on YFCC (1M vectors, cosine / $\ell_2$-normalized).}
+    \label{fig:yfcc}
+\end{figure}

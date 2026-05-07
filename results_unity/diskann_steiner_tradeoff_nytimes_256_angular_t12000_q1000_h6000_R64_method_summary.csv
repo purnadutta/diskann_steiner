@@ -1,0 +1,3 @@
+dataset,method,actual_hidden_count,recall_at_1_auc,recall_at_k_auc,best_variant_id,best_variant_beam_size,best_variant_recall_at_1,best_variant_recall_at_k,best_variant_avg_distance_computations,matched_beam_mean_delta_recall_at_1,matched_beam_mean_delta_recall_at_k,matched_beam_mean_delta_distance_computations,matched_beam_mean_delta_hop_count
+nytimes-256-angular,baseline,0,0.8406739026764415,0.6224191563104815,baseline_beam216,216,0.996,0.953740000000008,6395.515,0.0,0.0,0.0,0.0
+nytimes-256-angular,cluster_centroid,6000,0.8162963818939234,0.5573225009980909,cluster_centroid_beam324,324,0.992,0.928430000000001,7938.102,-0.044875000000000026,-0.10766500000000107,-333.54625,-0.49837500000000334
